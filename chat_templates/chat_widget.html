@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat de Atendimento</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        /* Chat Widget Styles */
+        .chat-widget {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .chat-toggle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            border: none;
+            color: white;
+            font-size: 24px;
+            box-shadow: 0 4px 20px rgba(0, 123, 255, 0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .chat-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px rgba(0, 123, 255, 0.4);
+        }
+        
+        .chat-toggle.active {
+            background: linear-gradient(135deg, #dc3545, #bd2130);
+        }
+        
+        .chat-window {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            width: 350px;
+            height: 500px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .agent-info {
+            display: flex;
+            align-items: center;
+        }
+        
+        .agent-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-size: 18px;
+        }
+        
+        .agent-status {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        
+        .chat-body {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .message.user {
+            justify-content: flex-end;
+        }
+        
+        .message-content {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+            line-height: 1.4;
+            white-space: pre-line;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        .message.bot .message-content {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 15px 15px 15px 5px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .message.user .message-content {
+            background: #007bff;
+            color: white;
+            border-radius: 15px 15px 5px 15px;
+        }
+        
+        .message.system .message-content {
+            background: #ffc107;
+            color: #212529;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 100%;
+            white-space: pre-line;
+        }
+        
+        .message-content.long-message {
+            max-width: 95%;
+            padding: 15px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        
+        .message-content p {
+            margin-bottom: 10px;
+        }
+        
+        .message-content p:last-child {
+            margin-bottom: 0;
+        }
+        
+        .expand-message {
+            color: #007bff;
+            cursor: pointer;
+            font-size: 12px;
+            text-decoration: underline;
+            margin-top: 5px;
+            display: block;
+        }
+        
+        .expand-message:hover {
+            color: #0056b3;
+        }
+        
+        .message-actions {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+            justify-content: flex-start;
+        }
+        
+        .message.user .message-actions {
+            justify-content: flex-end;
+        }
+        
+        .action-btn {
+            background: none;
+            border: none;
+            color: #6c757d;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 2px 5px;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+        
+        .action-btn:hover {
+            background: #e9ecef;
+            color: #495057;
+        }
+        
+        .suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        
+        .suggestion-chip {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .suggestion-chip:hover {
+            background: #1976d2;
+            color: white;
+        }
+        
+        .chat-input {
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .message-input {
+            flex: 1;
+            border: 1px solid #e9ecef;
+            border-radius: 25px;
+            padding: 10px 15px;
+            font-size: 14px;
+            outline: none;
+        }
+        
+        .send-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #007bff;
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .send-btn:hover:not(:disabled) {
+            background: #0056b3;
+        }
+        
+        .send-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .typing-indicator {
+            display: none;
+            padding: 10px;
+            color: #6c757d;
+            font-style: italic;
+            font-size: 12px;
+        }
+        
+        .transfer-options {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        
+        .transfer-btn {
+            background: #ffc107;
+            color: #212529;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        .satisfaction-survey {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            text-align: center;
+            display: none;
+        }
+        
+        .rating-stars {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            margin: 10px 0;
+        }
+        
+        .star {
+            font-size: 20px;
+            color: #ddd;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        
+        .star:hover,
+        .star.active {
+            color: #ffc107;
+        }
+        
+        /* Formulário de dados do cliente */
+        .client-form {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            font-size: 13px;
+            color: #495057;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            font-size: 14px;
+            outline: none;
+        }
+        
+        .form-group input:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+        
+        .form-group.required label::after {
+            content: " *";
+            color: #dc3545;
+        }
+        
+        .start-chat-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        
+        .start-chat-btn:hover {
+            background: #0056b3;
+        }
+        
+        .start-chat-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .form-validation {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .chat-window {
+                width: 100vw;
+                height: 100vh;
+                bottom: 0;
+                right: 0;
+                border-radius: 0;
+            }
+            
+            .chat-widget {
+                bottom: 10px;
+                right: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Demo page content -->
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4><i class="bi bi-chat-dots"></i> Demo do Chat Widget</h4>
+                    </div>
+                    <div class="card-body">
+                        <h5>Teste o Chat de Atendimento</h5>
+                        <p>Este é um exemplo de página onde o chat widget estaria integrado. Clique no botão de chat no canto inferior direito para testar.</p>
+                        
+                        <div class="alert alert-info">
+                            <h6><i class="bi bi-info-circle"></i> Funcionalidades:</h6>
+                            <ul class="mb-0">
+                                <li>Atendimento automático com IA treinada</li>
+                                <li>Transferência para atendente humano</li>
+                                <li>Avaliação de respostas</li>
+                                <li>Coleta de dados para melhorar treinamento</li>
+                                <li>Sugestões inteligentes</li>
+                                <li>Interface responsiva</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <strong>Palavras-chave para transferência:</strong> "atendente", "humano", "pessoa", "falar com alguém", "transferir", "não resolve"
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Widget -->
+    <div class="chat-widget">
+        <div class="chat-window" id="chatWindow">
+            <div class="chat-header">
+                <div class="agent-info">
+                    <div class="agent-avatar">
+                        <i class="bi bi-robot" id="agentIcon"></i>
+                    </div>
+                    <div>
+                        <div id="agentName">Assistente Virtual</div>
+                        <div class="agent-status" id="agentStatus">Online</div>
+                    </div>
+                </div>
+                <button class="btn btn-sm" onclick="toggleChat()" style="color: white;">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            
+            <div class="chat-body" id="chatBody">
+                <!-- Formulário inicial para coleta de dados -->
+                <div class="client-form" id="clientForm">
+                    <h6 style="margin-bottom: 15px; color: #007bff;">
+                        <i class="bi bi-person-circle"></i> Dados para Atendimento
+                    </h6>
+                    <p style="font-size: 13px; color: #6c757d; margin-bottom: 15px;">
+                        Para oferecer o melhor atendimento, precisamos de algumas informações:
+                    </p>
+                    
+                    <div class="form-group required">
+                        <label for="clientName">Nome Completo</label>
+                        <input type="text" id="clientName" placeholder="Seu nome completo" maxlength="100">
+                        <div class="form-validation" id="nameError" style="display: none;"></div>
+                    </div>
+                    
+                    <div class="form-group required">
+                        <label for="clientEmail">E-mail</label>
+                        <input type="email" id="clientEmail" placeholder="seu@email.com" maxlength="100">
+                        <div class="form-validation" id="emailError" style="display: none;"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="clientPhone">Telefone (opcional)</label>
+                        <input type="tel" id="clientPhone" placeholder="(00) 00000-0000" maxlength="20">
+                    </div>
+                    
+                    <button type="button" class="start-chat-btn" onclick="startChatWithData()">
+                        <i class="bi bi-chat-dots"></i> Iniciar Conversa
+                    </button>
+                    
+                    <p style="font-size: 11px; color: #6c757d; margin-top: 10px; text-align: center;">
+                        Seus dados são protegidos e usados apenas para este atendimento.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="typing-indicator" id="typingIndicator">
+                Assistente está digitando...
+            </div>
+            
+            <div class="chat-input">
+                <div class="input-group">
+                    <input type="text" class="message-input" id="messageInput" 
+                           placeholder="Digite sua mensagem..." maxlength="500">
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                        <i class="bi bi-send"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <button class="chat-toggle" id="chatToggle" onclick="toggleChat()">
+            <i class="bi bi-chat-dots" id="toggleIcon"></i>
+        </button>
+    </div>
+
+    <script>
+        // Chat Widget JavaScript
+        let conversationId = null;
+        let isConnected = false;
+        let messageQueue = [];
+        let messagePolling = null;
+        let lastMessageCheck = '0';
+        
+        // Variáveis para dados do cliente
+        let clientData = {
+            name: '',
+            email: '',
+            phone: ''
+        };
+        
+        // Inicializar chat quando a página carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Chat widget inicializado');
+            
+            // Adicionar event listener para Enter
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput) {
+                messageInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                });
+            }
+            
+            // Melhorar o input para permitir mensagens maiores
+            if (messageInput) {
+                messageInput.setAttribute('maxlength', '2000'); // Aumentar limite
+                
+                // Auto-resize do input se ficar muito longo
+                messageInput.addEventListener('input', function() {
+                    if (this.value.length > 100) {
+                        this.style.height = 'auto';
+                        this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+                    } else {
+                        this.style.height = '';
+                    }
+                });
+            }
+        });
+        
+        async function toggleChat() {
+            const chatWindow = document.getElementById('chatWindow');
+            const chatToggle = document.getElementById('chatToggle');
+            const toggleIcon = document.getElementById('toggleIcon');
+            
+            if (!chatWindow || !chatToggle || !toggleIcon) {
+                console.error('Elementos do chat não encontrados');
+                return;
+            }
+            
+            if (chatWindow.style.display === 'none' || !chatWindow.style.display) {
+                // Abrir chat
+                chatWindow.style.display = 'flex';
+                chatToggle.classList.add('active');
+                toggleIcon.className = 'bi bi-x-lg';
+                
+                // Não iniciar conversa automaticamente, aguardar dados do cliente
+                if (!isConnected) {
+                    showClientForm();
+                }
+            } else {
+                // Fechar chat
+                chatWindow.style.display = 'none';
+                chatToggle.classList.remove('active');
+                toggleIcon.className = 'bi bi-chat-dots';
+            }
+        }
+        
+        function showClientForm() {
+            const clientForm = document.getElementById('clientForm');
+            if (clientForm) {
+                clientForm.style.display = 'block';
+                
+                // Aplicar máscara no telefone
+                const phoneInput = document.getElementById('clientPhone');
+                if (phoneInput) {
+                    phoneInput.addEventListener('input', function(e) {
+                        let value = e.target.value.replace(/\D/g, '');
+                        if (value.length <= 11) {
+                            value = value.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+                            if (value.length <= 14) {
+                                value = value.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+                            }
+                        }
+                        e.target.value = value;
+                    });
+                }
+            }
+        }
+        
+        function validateClientData() {
+            const nameInput = document.getElementById('clientName');
+            const emailInput = document.getElementById('clientEmail');
+            const phoneInput = document.getElementById('clientPhone');
+            
+            if (!nameInput || !emailInput || !phoneInput) {
+                console.error('Campos do formulário não encontrados');
+                return false;
+            }
+            
+            const name = nameInput.value.trim();
+            const email = emailInput.value.trim();
+            const phone = phoneInput.value.trim();
+            
+            let isValid = true;
+            
+            // Validar nome
+            if (!name || name.length < 2) {
+                showFieldError('nameError', 'Nome é obrigatório (mínimo 2 caracteres)');
+                isValid = false;
+            } else {
+                hideFieldError('nameError');
+            }
+            
+            // Validar email
+            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!email || !emailPattern.test(email)) {
+                showFieldError('emailError', 'E-mail válido é obrigatório');
+                isValid = false;
+            } else {
+                hideFieldError('emailError');
+            }
+            
+            if (isValid) {
+                clientData = { name, email, phone };
+            }
+            
+            return isValid;
+        }
+        
+        function showFieldError(fieldId, message) {
+            const errorDiv = document.getElementById(fieldId);
+            if (errorDiv) {
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+            }
+        }
+        
+        function hideFieldError(fieldId) {
+            const errorDiv = document.getElementById(fieldId);
+            if (errorDiv) {
+                errorDiv.style.display = 'none';
+            }
+        }
+        
+        async function startChatWithData() {
+            console.log('Iniciando chat com dados do cliente...');
+            
+            if (!validateClientData()) {
+                console.log('Dados do cliente inválidos');
+                return;
+            }
+            
+            const startBtn = document.querySelector('.start-chat-btn');
+            if (!startBtn) {
+                console.error('Botão de iniciar chat não encontrado');
+                return;
+            }
+            
+            startBtn.disabled = true;
+            startBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Conectando...';
+            
+            try {
+                await startConversation();
+                
+                // Esconder formulário e mostrar chat
+                const clientForm = document.getElementById('clientForm');
+                if (clientForm) {
+                    clientForm.style.display = 'none';
+                }
+                
+            } catch (error) {
+                console.error('Erro ao iniciar conversa:', error);
+                startBtn.disabled = false;
+                startBtn.innerHTML = '<i class="bi bi-chat-dots"></i> Iniciar Conversa';
+                
+                // Mostrar erro para o usuário
+                const chatBody = document.getElementById('chatBody');
+                if (chatBody) {
+                    addMessage('system', 'Erro de conexão. Tente novamente.');
+                }
+            }
+        }
+        
+        async function startConversation() {
+            try {
+                console.log('Enviando dados para iniciar conversa:', clientData);
+                
+                const response = await fetch('/chat/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        client_data: clientData
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Resposta do servidor:', data);
+                
+                if (data.conversation_id) {
+                    conversationId = data.conversation_id;
+                    isConnected = true;
+                    
+                    // Limpar chat e adicionar mensagem de boas-vindas personalizada
+                    const chatBody = document.getElementById('chatBody');
+                    if (chatBody) {
+                        chatBody.innerHTML = '';
+                        addMessage('bot', `Olá, ${clientData.name}! ${data.message}`);
+                    }
+                    
+                    updateAgentStatus('online');
+                } else {
+                    throw new Error('ID da conversa não recebido');
+                }
+            } catch (error) {
+                console.error('Erro ao iniciar conversa:', error);
+                throw error;
+            }
+        }
+        
+        async function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            if (!messageInput) {
+                console.error('Campo de mensagem não encontrado');
+                return;
+            }
+            
+            const message = messageInput.value.trim();
+            
+            if (!message || !isConnected) return;
+            
+            // Adicionar mensagem do usuário
+            addMessage('user', message);
+            messageInput.value = '';
+            
+            // Mostrar indicador de digitação
+            showTyping(true);
+            
+            try {
+                const response = await fetch('/chat/message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        conversation_id: conversationId,
+                        message: message
+                    })
+                });
+                
+                const data = await response.json();
+                
+                showTyping(false);
+                
+                if (data.response) {
+                    addMessage(data.type || 'bot', data.response);
+                    
+                    // Se foi transferido para humano, iniciar polling
+                    if (data.human_agent || data.transferred) {
+                        updateAgentStatus('human');
+                        startMessagePolling();
+                    }
+                    
+                    // Adicionar sugestões se houver
+                    if (data.suggestions && data.suggestions.length > 0) {
+                        addSuggestions(data.suggestions);
+                    }
+                    
+                    // Mostrar opção de transferência se aplicável
+                    if (data.show_transfer_option && !data.transferred) {
+                        showTransferOption();
+                    }
+                    
+                    // Verificar se foi transferido
+                    if (data.transferred) {
+                        updateAgentStatus('queue', data.queue_position);
+                        startMessagePolling();
+                    }
+                }
+            } catch (error) {
+                showTyping(false);
+                console.error('Erro ao enviar mensagem:', error);
+                addMessage('system', 'Erro de conexão. Tente novamente.');
+            }
+        }
+        
+        function showTyping(show) {
+            const typingIndicator = document.getElementById('typingIndicator');
+            if (typingIndicator) {
+                typingIndicator.style.display = show ? 'block' : 'none';
+                
+                if (show) {
+                    const chatBody = document.getElementById('chatBody');
+                    if (chatBody) {
+                        chatBody.scrollTop = chatBody.scrollHeight;
+                    }
+                }
+            }
+        }
+        
+        function startMessagePolling() {
+            if (messagePolling) {
+                clearInterval(messagePolling);
+            }
+            
+            console.log('Iniciando polling de mensagens...');
+            
+            messagePolling = setInterval(async () => {
+                try {
+                    const response = await fetch(`/chat/poll/${conversationId}?last_check=${encodeURIComponent(lastMessageCheck)}`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.new_messages && data.new_messages.length > 0) {
+                        console.log(`Recebidas ${data.new_messages.length} novas mensagens`);
+                        
+                        data.new_messages.forEach(msg => {
+                            if (msg.type === 'agent') {
+                                addMessage('bot', msg.content, false);
+                                updateAgentStatus('human');
+                            } else if (msg.type === 'system') {
+                                addMessage('system', msg.content, false);
+                            }
+                        });
+                        
+                        // Scroll para baixo após receber mensagens
+                        const chatBody = document.getElementById('chatBody');
+                        if (chatBody) {
+                            chatBody.scrollTop = chatBody.scrollHeight;
+                        }
+                    }
+                    
+                    if (data.last_update) {
+                        lastMessageCheck = data.last_update;
+                    }
+                    
+                    if (data.conversation_ended) {
+                        clearInterval(messagePolling);
+                        messagePolling = null;
+                        showSatisfactionSurvey();
+                    }
+                    
+                } catch (error) {
+                    console.error('Erro no polling de mensagens:', error);
+                    // Não parar o polling por erro temporário
+                }
+            }, 2000); // Verificar a cada 2 segundos
+        }
+        
+        function addMessage(type, content, showActions = true) {
+            const chatBody = document.getElementById('chatBody');
+            if (!chatBody) {
+                console.error('Área de mensagens não encontrada');
+                return;
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const messageId = Date.now() + Math.random();
+            
+            // Melhorar aparência da mensagem do agente
+            let messageClass = type;
+            let messageIcon = '';
+            
+            if (type === 'bot') {
+                // Verificar se é resposta de agente humano ou IA
+                const agentStatus = document.getElementById('agentStatus');
+                if (agentStatus && (agentStatus.textContent.includes('Atendente') || agentStatus.textContent.includes('Humano'))) {
+                    messageIcon = '<i class="bi bi-person-check" style="font-size: 12px; margin-right: 5px;"></i>';
+                } else {
+                    messageIcon = '<i class="bi bi-robot" style="font-size: 12px; margin-right: 5px;"></i>';
+                }
+            }
+            
+            // Processar conteúdo para quebras de linha e formatação
+            let processedContent = processMessageContent(content);
+            let isLongMessage = content.length > 500;
+            
+            // Truncar mensagem se muito longa (apenas para prévia)
+            let displayContent = processedContent;
+            let needsExpansion = false;
+            
+            if (isLongMessage && content.length > 800) {
+                const truncated = content.substring(0, 400) + '...';
+                displayContent = processMessageContent(truncated);
+                needsExpansion = true;
+            }
+            
+            const messageContentClass = isLongMessage ? 'message-content long-message' : 'message-content';
+            
+            messageDiv.innerHTML = `
+                <div class="${messageContentClass}" id="content-${messageId}">
+                    ${messageIcon}${displayContent}
+                    ${needsExpansion ? `<span class="expand-message" onclick="expandMessage('${messageId}', '${escapeHtml(processedContent)}')">Ver mensagem completa</span>` : ''}
+                </div>
+                ${showActions && type === 'bot' ? `
+                    <div class="message-actions">
+                        <button class="action-btn" onclick="rateMessage(${messageId}, 'positive')" title="Resposta útil">
+                            <i class="bi bi-hand-thumbs-up"></i>
+                        </button>
+                        <button class="action-btn" onclick="rateMessage(${messageId}, 'negative')" title="Resposta não útil">
+                            <i class="bi bi-hand-thumbs-down"></i>
+                        </button>
+                        <button class="action-btn" onclick="copyMessage('${messageId}')" title="Copiar mensagem">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                ` : ''}
+            `;
+            
+            messageDiv.dataset.messageId = messageId;
+            messageDiv.dataset.fullContent = content; // Armazenar conteúdo completo
+            chatBody.appendChild(messageDiv);
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
+        
+        function processMessageContent(content) {
+            // Converter quebras de linha duplas em parágrafos
+            let processed = content.replace(/\n\n+/g, '\n\n');
+            
+            // Tratar formatação básica
+            processed = processed.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // **texto** -> negrito
+            processed = processed.replace(/\*(.*?)\*/g, '<em>$1</em>'); // *texto* -> itálico
+            
+            // Quebrar em parágrafos se houver quebras duplas
+            if (processed.includes('\n\n')) {
+                const paragraphs = processed.split('\n\n').filter(p => p.trim());
+                processed = paragraphs.map(p => `<p>${p.trim()}</p>`).join('');
+            }
+            
+            return processed;
+        }
+        
+        function expandMessage(messageId, fullContent) {
+            const contentDiv = document.getElementById(`content-${messageId}`);
+            if (!contentDiv) return;
+            
+            const messageIcon = contentDiv.querySelector('i') ? contentDiv.querySelector('i').outerHTML : '';
+            
+            contentDiv.innerHTML = messageIcon + fullContent;
+            contentDiv.classList.add('long-message');
+            
+            // Scroll para mostrar a mensagem expandida
+            const chatBody = document.getElementById('chatBody');
+            if (chatBody) {
+                chatBody.scrollTop = chatBody.scrollHeight;
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+        }
+        
+        function copyMessage(messageId) {
+            const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (!messageDiv) return;
+            
+            const fullContent = messageDiv.dataset.fullContent;
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(fullContent).then(() => {
+                    showCopyFeedback(messageId);
+                }).catch(err => {
+                    console.error('Erro ao copiar:', err);
+                    fallbackCopyTextToClipboard(fullContent, messageId);
+                });
+            } else {
+                fallbackCopyTextToClipboard(fullContent, messageId);
+            }
+        }
+        
+        function fallbackCopyTextToClipboard(text, messageId) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            textArea.style.top = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                showCopyFeedback(messageId);
+            } catch (err) {
+                console.error('Erro ao copiar texto:', err);
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        function showCopyFeedback(messageId) {
+            const messageDiv = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (!messageDiv) return;
+            
+            const actions = messageDiv.querySelector('.message-actions');
+            const copyBtn = actions.querySelector('.action-btn:last-child');
+            
+            if (copyBtn) {
+                const originalContent = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<i class="bi bi-check"></i>';
+                copyBtn.style.color = '#28a745';
+                
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalContent;
+                    copyBtn.style.color = '';
+                }, 2000);
+            }
+        }
+        
+        function addSuggestions(suggestions) {
+            const chatBody = document.getElementById('chatBody');
+            if (!chatBody) return;
+            
+            const suggestionsDiv = document.createElement('div');
+            suggestionsDiv.className = 'suggestions';
+            
+            suggestions.forEach(suggestion => {
+                const chip = document.createElement('button');
+                chip.className = 'suggestion-chip';
+                chip.textContent = suggestion;
+                chip.onclick = () => {
+                    const messageInput = document.getElementById('messageInput');
+                    if (messageInput) {
+                        messageInput.value = suggestion;
+                        sendMessage();
+                    }
+                };
+                suggestionsDiv.appendChild(chip);
+            });
+            
+            chatBody.appendChild(suggestionsDiv);
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
+        
+        function showTransferOption() {
+            const chatBody = document.getElementById('chatBody');
+            if (!chatBody) return;
+            
+            const transferDiv = document.createElement('div');
+            transferDiv.className = 'transfer-options';
+            transferDiv.innerHTML = `
+                <div>Não encontrou o que procurava?</div>
+                <button class="transfer-btn" onclick="requestHumanTransfer()">
+                    <i class="bi bi-person"></i> Falar com Atendente
+                </button>
+            `;
+            
+            chatBody.appendChild(transferDiv);
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
+        
+        async function requestHumanTransfer() {
+            try {
+                const response = await fetch('/chat/transfer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ conversation_id: conversationId })
+                });
+                
+                const data = await response.json();
+                
+                if (data.transferred) {
+                    updateAgentStatus('queue', data.queue_position);
+                    addMessage('system', data.response);
+                    startMessagePolling();
+                }
+            } catch (error) {
+                console.error('Erro na transferência:', error);
+            }
+        }
+        
+        async function rateMessage(messageId, rating) {
+            try {
+                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+                if (!messageElement) return;
+                
+                const messageIndex = Array.from(messageElement.parentNode.children).indexOf(messageElement);
+                
+                await fetch('/chat/rate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        conversation_id: conversationId,
+                        message_index: messageIndex,
+                        rating: rating
+                    })
+                });
+                
+                // Feedback visual
+                const actions = messageElement.querySelector('.message-actions');
+                if (actions) {
+                    actions.innerHTML = `<span style="color: #28a745; font-size: 12px;">
+                        <i class="bi bi-check"></i> Obrigado pelo feedback!
+                    </span>`;
+                }
+                
+            } catch (error) {
+                console.error('Erro ao avaliar mensagem:', error);
+            }
+        }
+        
+        function updateAgentStatus(status, queuePosition = null) {
+            const agentIcon = document.getElementById('agentIcon');
+            const agentName = document.getElementById('agentName');
+            const agentStatus = document.getElementById('agentStatus');
+            
+            if (!agentIcon || !agentName || !agentStatus) return;
+            
+            switch (status) {
+                case 'online':
+                    agentIcon.className = 'bi bi-robot';
+                    agentName.textContent = 'Assistente Virtual';
+                    agentStatus.textContent = 'Online';
+                    // Parar polling se estava ativo
+                    if (messagePolling) {
+                        clearInterval(messagePolling);
+                        messagePolling = null;
+                    }
+                    break;
+                case 'queue':
+                    agentIcon.className = 'bi bi-clock';
+                    agentName.textContent = 'Aguardando Atendente';
+                    agentStatus.textContent = queuePosition ? 
+                        `Posição na fila: ${queuePosition}` : 'Na fila de atendimento';
+                    break;
+                case 'human':
+                    agentIcon.className = 'bi bi-person-check';
+                    agentName.textContent = 'Atendente Humano';
+                    agentStatus.textContent = 'Online';
+                    break;
+            }
+        }
+        
+        // Função para ser chamada quando a conversa termina
+        function showSatisfactionSurvey() {
+            const chatBody = document.getElementById('chatBody');
+            if (!chatBody) return;
+            
+            const surveyDiv = document.createElement('div');
+            surveyDiv.className = 'satisfaction-survey';
+            surveyDiv.innerHTML = `
+                <div><strong>Como foi seu atendimento?</strong></div>
+                <div class="rating-stars">
+                    <span class="star" onclick="rateSatisfaction(1)">★</span>
+                    <span class="star" onclick="rateSatisfaction(2)">★</span>
+                    <span class="star" onclick="rateSatisfaction(3)">★</span>
+                    <span class="star" onclick="rateSatisfaction(4)">★</span>
+                    <span class="star" onclick="rateSatisfaction(5)">★</span>
+                </div>
+                <small>Sua avaliação nos ajuda a melhorar!</small>
+            `;
+            
+            chatBody.appendChild(surveyDiv);
+            surveyDiv.style.display = 'block';
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
+        
+        async function rateSatisfaction(rating) {
+            try {
+                await fetch('/chat/end', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        conversation_id: conversationId,
+                        satisfaction: rating
+                    })
+                });
+                
+                const surveyDiv = document.querySelector('.satisfaction-survey');
+                if (surveyDiv) {
+                    surveyDiv.innerHTML = '<div style="color: #28a745;">Obrigado pela avaliação!</div>';
+                }
+                
+            } catch (error) {
+                console.error('Erro ao avaliar atendimento:', error);
+            }
+        }
+        
+        // Limpar polling ao fechar chat
+        window.addEventListener('beforeunload', function() {
+            if (messagePolling) {
+                clearInterval(messagePolling);
+            }
+        });
+    </script>
+</body>
+</html>

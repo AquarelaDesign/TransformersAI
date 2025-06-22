@@ -1,0 +1,21 @@
+{
+  "base_model": "microsoft/DialoGPT-small",
+  "web_sources": [
+    "https://www.domit.com.br"
+  ],
+  "keywords": [
+    "optimix"
+  ],
+  "epochs": 3,
+  "batch_size": 4,
+  "email_config": {
+    "provider": "custom",
+    "username": "info@domit.com.br",
+    "password": "2*Melcom#02",
+    "only_unread": false,
+    "imap_server": "outlook.office365.com",
+    "smtp_server": "smtp.office365.com",
+    "imap_port": 993,
+    "smtp_port": 587
+  }
+}

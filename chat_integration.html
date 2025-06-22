@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integração do Chat Widget</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .code-block { background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #007bff; margin: 15px 0; }
+        .highlight { background: #fff3cd; padding: 2px 4px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Como Integrar o Chat Widget</h1>
+        
+        <h2>1. Iniciar o Servidor do Chat</h2>
+        <div class="code-block">
+            <strong>Execute no terminal:</strong><br>
+            <code>python chat_widget.py</code><br>
+            <small>O servidor será iniciado em http://localhost:5001</small>
+        </div>
+        
+        <h2>2. Adicionar ao Seu Site</h2>
+        <p>Adicione este código antes do fechamento da tag <code>&lt;/body&gt;</code> do seu site:</p>
+        
+        <div class="code-block">
+            <pre>&lt;!-- Chat Widget Integration --&gt;
+&lt;div id="ai-chat-widget"&gt;&lt;/div&gt;
+&lt;script&gt;
+(function() {
+    // Configurações do chat
+    const CHAT_CONFIG = {
+        serverUrl: 'http://localhost:5001',
+        position: 'bottom-right', // bottom-right, bottom-left
+        theme: 'blue', // blue, green, purple
+        autoOpen: false,
+        welcomeMessage: 'Olá! Como posso ajudá-lo hoje?'
+    };
+    
+    // Carregar chat widget
+    const iframe = document.createElement('iframe');
+    iframe.src = CHAT_CONFIG.serverUrl + '/chat';
+    iframe.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 350px;
+        height: 600px;
+        border: none;
+        z-index: 9999;
+        border-radius: 15px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    `;
+    
+    document.body.appendChild(iframe);
+    
+    // Comunicação com o chat
+    window.addEventListener('message', function(event) {
+        if (event.origin !== CHAT_CONFIG.serverUrl) return;
+        
+        // Eventos do chat
+        switch(event.data.type) {
+            case 'chat_opened':
+                console.log('Chat aberto');
+                break;
+            case 'chat_closed':
+                console.log('Chat fechado');
+                break;
+            case 'conversation_ended':
+                console.log('Conversa finalizada');
+                break;
+        }
+    });
+})();
+&lt;/script&gt;</pre>
+        </div>
+        
+        <h2>3. Personalização Avançada</h2>
+        
+        <h3>🎨 Personalizar Aparência</h3>
+        <div class="code-block">
+            <strong>Modificar cores (adicionar ao CSS do seu site):</strong><br>
+            <pre>.chat-widget .chat-toggle {
+    background: linear-gradient(135deg, #your-color1, #your-color2) !important;
+}
+
+.chat-widget .chat-header {
+    background: linear-gradient(135deg, #your-color1, #your-color2) !important;
+}</pre>
+        </div>
+        
+        <h3>⚙️ Configurações Dinâmicas</h3>
+        <div class="code-block">
+            <pre>// Abrir chat programaticamente
+window.openChat = function() {
+    iframe.contentWindow.postMessage({type: 'open_chat'}, '*');
+};
+
+// Enviar mensagem programática
+window.sendChatMessage = function(message) {
+    iframe.contentWindow.postMessage({
+        type: 'send_message', 
+        message: message
+    }, '*');
+};
+
+// Exemplo de uso:
+// openChat();
+// sendChatMessage('Olá, preciso de ajuda!');</pre>
+        </div>
+        
+        <h2>4. Monitoramento e Analytics</h2>
+        
+        <h3>📊 Painel Administrativo</h3>
+        <p>Acesse <code>http://localhost:5001/admin/conversations</code> para monitorar:</p>
+        <ul>
+            <li>Conversas ativas</li>
+            <li>Fila de atendimento humano</li>
+            <li>Status do modelo de IA</li>
+            <li>Total de conversas</li>
+        </ul>
+        
+        <h3>🔍 Coleta de Dados</h3>
+        <p>Os dados das conversas são automaticamente salvos em:</p>
+        <div class="code-block">
+            <code>chat_training_data/conversation_[id]_[timestamp].json</code>
+        </div>
+        
+        <h2>5. Integração com Sistemas Existentes</h2>
+        
+        <h3>🔗 Webhook para CRM</h3>
+        <div class="code-block">
+            <pre>// Adicionar ao chat_widget.py
+@chat_app.route('/webhook/conversation_ended', methods=['POST'])
+def conversation_ended_webhook():
+    data = request.json
+    
+    # Enviar para seu CRM/Sistema
+    # crm_api.create_lead(data)
+    
+    return jsonify({'status': 'success'})</pre>
+        </div>
+        
+        <h3>📧 Notificações por Email</h3>
+        <div class="code-block">
+            <pre>// Notificar quando transferir para humano
+import smtplib
+from email.mime.text import MIMEText
+
+def notify_human_transfer(conversation_id):
+    # Configurar email
+    msg = MIMEText(f'Nova conversa na fila: {conversation_id}')
+    msg['Subject'] = 'Atendimento Humano Solicitado'
+    msg['From'] = 'sistema@empresa.com'
+    msg['To'] = 'atendimento@empresa.com'
+    
+    # Enviar email
+    # smtp_server.send_message(msg)</pre>
+        </div>
+        
+        <h2>6. Teste e Deploy</h2>
+        
+        <div class="alert" style="background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; border-radius: 5px;">
+            <h4>🚀 Deploy em Produção</h4>
+            <ol>
+                <li>Configure um servidor web (nginx/apache)</li>
+                <li>Use HTTPS para segurança</li>
+                <li>Configure domínio personalizado</li>
+                <li>Monitore logs e performance</li>
+                <li>Configure backup dos dados de treinamento</li>
+            </ol>
+        </div>
+        
+        <h2>7. Funcionalidades Avançadas</h2>
+        
+        <h3>🤖 Melhorar IA</h3>
+        <ul>
+            <li><span class="highlight">Retreinamento automático</span> com novos dados</li>
+            <li><span class="highlight">A/B Testing</span> de diferentes modelos</li>
+            <li><span class="highlight">Análise de sentimentos</span> das conversas</li>
+            <li><span class="highlight">Detecção de intenções</span> automatizada</li>
+        </ul>
+        
+        <h3>👥 Atendimento Humano</h3>
+        <ul>
+            <li><span class="highlight">Dashboard para atendentes</span></li>
+            <li><span class="highlight">Chat em tempo real</span></li>
+            <li><span class="highlight">Histórico de conversas</span></li>
+            <li><span class="highlight">Métricas de atendimento</span></li>
+        </ul>
+    </div>
+    
+    <script>
+        // Destacar códigos
+        document.addEventListener('DOMContentLoaded', function() {
+            const codeBlocks = document.querySelectorAll('.code-block pre, .code-block code');
+            codeBlocks.forEach(block => {
+                block.style.fontFamily = 'Monaco, Consolas, "Courier New", monospace';
+                block.style.fontSize = '13px';
+            });
+        });
+    </script>
+</body>
+</html>

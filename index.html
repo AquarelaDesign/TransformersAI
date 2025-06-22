@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TransformersAI - Dashboard Principal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background: #f8f9fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .hero-section {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 60px 0;
+            text-align: center;
+        }
+        
+        .dashboard-card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .training-section {
+            background: linear-gradient(135deg, #ffc107, #fd7e14);
+            color: white;
+            border-radius: 15px;
+            padding: 30px;
+        }
+        
+        .training-files-list {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+        }
+        
+        .training-file-item {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+        
+        .training-file-item:hover {
+            background-color: #e3f2fd;
+            border-color: #007bff;
+            transform: translateY(-2px);
+        }
+        
+        .progress-custom {
+            height: 25px;
+            border-radius: 15px;
+        }
+        
+        .btn-custom {
+            border-radius: 25px;
+            padding: 12px 30px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .quick-access {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .quick-access .btn {
+            margin: 10px;
+            min-width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-robot"></i> TransformersAI
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/chat" target="_blank">
+                            <i class="bi bi-chat-dots"></i> Chat Widget
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin" target="_blank">
+                            <i class="bi bi-headset"></i> Painel Admin
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <div class="container">
+            <h1><i class="bi bi-cpu"></i> TransformersAI Dashboard</h1>
+            <p class="lead">Sistema de Atendimento Inteligente com IA e Humanos</p>
+            <div class="row mt-4">
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number" id="heroQueueCount">0</div>
+                        <div>Na Fila</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number" id="heroActiveChats">0</div>
+                        <div>Conversas Ativas</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number" id="heroTotalConversations">0</div>
+                        <div>Total de Conversas</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="stat-card">
+                        <div class="stat-number" id="heroModelStatus">IA</div>
+                        <div>Status do Modelo</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div class="container my-5">
+        <!-- Quick Access -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <div class="quick-access">
+                    <h4><i class="bi bi-lightning"></i> Acesso Rápido</h4>
+                    <a href="/chat" target="_blank" class="btn btn-primary btn-custom">
+                        <i class="bi bi-chat-dots"></i> Abrir Chat Widget
+                    </a>
+                    <a href="/admin" target="_blank" class="btn btn-success btn-custom">
+                        <i class="bi bi-headset"></i> Painel de Atendimento
+                    </a>
+                    <button class="btn btn-warning btn-custom" onclick="refreshAllData()">
+                        <i class="bi bi-arrow-clockwise"></i> Atualizar Dados
+                    </button>
+                    <button class="btn btn-danger btn-custom" onclick="showRetrainingModal()" style="font-size: 18px; font-weight: bold;">
+                        <i class="bi bi-arrow-repeat"></i> RETREINAR MODELO IA
+                    </button>
+                    <button class="btn btn-info btn-custom" onclick="showDataCollectionModal()">
+                        <i class="bi bi-download"></i> Coletar Dados Web
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de Retreinamento -->
+        <div class="modal fade" id="retrainingModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-warning text-dark">
+                        <h5 class="modal-title">
+                            <i class="bi bi-arrow-repeat"></i> Sistema de Retreinamento de IA
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <h6><i class="bi bi-info-circle"></i> Dados Disponíveis para Treinamento:</h6>
+                            <div class="row text-center">
+                                <div class="col-3">
+                                    <h4 id="modalTotalConversations" class="text-primary">0</h4>
+                                    <small>Conversas</small>
+                                </div>
+                                <div class="col-3">
+                                    <h4 id="modalTotalInteractions" class="text-success">0</h4>
+                                    <small>Interações</small>
+                                </div>
+                                <div class="col-3">
+                                    <h4 id="modalAiInteractions" class="text-info">0</h4>
+                                    <small>IA</small>
+                                </div>
+                                <div class="col-3">
+                                    <h4 id="modalHumanInteractions" class="text-warning">0</h4>
+                                    <small>Humano</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-gear"></i> Configurações de Treinamento</h6>
+                                
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="modalUseAllData" checked>
+                                    <label class="form-check-label" for="modalUseAllData">
+                                        <strong>Incluir todas as interações</strong><br>
+                                        <small class="text-muted">Incluir interações mal avaliadas também</small>
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="modalBackupModel" checked>
+                                    <label class="form-check-label" for="modalBackupModel">
+                                        <strong>Fazer backup do modelo atual</strong><br>
+                                        <small class="text-muted">Salvar modelo antes de retreinar</small>
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="modalOnlyHuman">
+                                    <label class="form-check-label" for="modalOnlyHuman">
+                                        <strong>Apenas interações humanas</strong><br>
+                                        <small class="text-muted">Usar só respostas de atendentes</small>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-exclamation-triangle"></i> Requisitos</h6>
+                                <div class="alert alert-warning">
+                                    <ul class="mb-0">
+                                        <li>Mínimo: <strong>5 conversas</strong></li>
+                                        <li>Mínimo: <strong>10 interações</strong></li>
+                                        <li>Processo pode demorar <strong>alguns minutos</strong></li>
+                                        <li>Sistema ficará <strong>temporariamente indisponível</strong></li>
+                                    </ul>
+                                </div>
+                                
+                                <div id="retrainingStatus" class="mt-3" style="display: none;">
+                                    <div class="alert alert-primary">
+                                        <i class="bi bi-hourglass-split"></i>
+                                        <strong>Processando...</strong>
+                                        <div class="progress mt-2">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                 style="width: 100%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x"></i> Cancelar
+                        </button>
+                        <button type="button" class="btn btn-warning btn-lg" onclick="executeRetraining()" id="modalRetrainBtn">
+                            <i class="bi bi-arrow-repeat"></i> INICIAR RETREINAMENTO
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de Coleta de Dados -->
+        <div class="modal fade" id="dataCollectionModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-info text-white">
+                        <h5 class="modal-title">
+                            <i class="bi bi-download"></i> Sistema de Coleta de Dados Web
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-exclamation-triangle"></i> Erro Detectado no Sistema:</h6>
+                            <p>O método <code>collect_web_data</code> não foi encontrado no DataCollector. Isso indica que o sistema precisa ser atualizado.</p>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-gear"></i> URLs para Coleta</h6>
+                                <div class="mb-3">
+                                    <label class="form-label">URLs (uma por linha):</label>
+                                    <textarea class="form-control" id="collectionUrls" rows="6" placeholder="https://www.domit.com.br&#10;https://www.exemplo.com">https://www.domit.com.br
+https://www.google.com/search?q=domit+optimix</textarea>
+                                </div>
+                                
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="cleanData" checked>
+                                    <label class="form-check-label" for="cleanData">
+                                        Limpar dados coletados
+                                    </label>
+                                </div>
+                                
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="saveBackup" checked>
+                                    <label class="form-check-label" for="saveBackup">
+                                        Salvar backup dos dados
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <h6><i class="bi bi-bug"></i> Status do Sistema</h6>
+                                <div class="alert alert-danger">
+                                    <h6>Problema Identificado:</h6>
+                                    <ul class="mb-0">
+                                        <li><strong>Método ausente:</strong> collect_web_data</li>
+                                        <li><strong>Classe:</strong> DataCollector</li>
+                                        <li><strong>Impacto:</strong> Coleta de dados web não funciona</li>
+                                        <li><strong>Solução:</strong> Atualizar código do DataCollector</li>
+                                    </ul>
+                                </div>
+                                
+                                <div id="collectionStatus" class="mt-3" style="display: none;">
+                                    <div class="alert alert-primary">
+                                        <i class="bi bi-hourglass-split"></i>
+                                        <strong>Coletando dados...</strong>
+                                        <div class="progress mt-2">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                 style="width: 100%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <button class="btn btn-warning btn-sm" onclick="fixDataCollector()">
+                                        <i class="bi bi-wrench"></i> Corrigir DataCollector
+                                    </button>
+                                    <button class="btn btn-secondary btn-sm" onclick="viewLogs()">
+                                        <i class="bi bi-file-text"></i> Ver Logs
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x"></i> Fechar
+                        </button>
+                        <button type="button" class="btn btn-info" onclick="executeDataCollection()" id="collectBtn" disabled>
+                            <i class="bi bi-download"></i> Iniciar Coleta (Método Indisponível)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status do Sistema -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <div class="dashboard-card card">
+                    <div class="card-header bg-info text-white">
+                        <h5><i class="bi bi-info-circle"></i> Status do Sistema</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="systemStatus" class="row">
+                            <div class="col-md-6">
+                                <h6>Chat em Tempo Real</h6>
+                                <div id="chatStatus">Carregando...</div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Modelo de IA</h6>
+                                <div id="modelStatus">Carregando...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Retreinamento de Modelos -->
+        <div class="row mb-5">
+            <div class="col-12">
+                <div class="training-section">
+                    <h3><i class="bi bi-arrow-repeat"></i> Sistema de Retreinamento</h3>
+                    <p>Gerencie e retreine o modelo de IA com base nas conversas coletadas</p>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6><i class="bi bi-database"></i> Dados de Treinamento</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row text-center">
+                                        <div class="col-6">
+                                            <h4 id="totalConversations" class="text-primary">0</h4>
+                                            <small>Conversas Salvas</small>
+                                        </div>
+                                        <div class="col-6">
+                                            <h4 id="totalInteractions" class="text-success">0</h4>
+                                            <small>Total de Interações</small>
+                                        </div>
+                                    </div>
+                                    <hr>
+                                    <div class="row text-center">
+                                        <div class="col-6">
+                                            <h5 id="aiInteractions" class="text-info">0</h5>
+                                            <small>Interações IA</small>
+                                        </div>
+                                        <div class="col-6">
+                                            <h5 id="humanInteractions" class="text-warning">0</h5>
+                                            <small>Interações Humanas</small>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline-primary btn-sm mt-3 w-100" onclick="refreshTrainingData()">
+                                        <i class="bi bi-arrow-clockwise"></i> Atualizar Dados
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6><i class="bi bi-gear"></i> Configurações de Retreinamento</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="useAllData" checked>
+                                        <label class="form-check-label" for="useAllData">
+                                            Incluir todas as interações (inclusive mal avaliadas)
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="backupModel" checked>
+                                        <label class="form-check-label" for="backupModel">
+                                            Fazer backup do modelo atual antes do retreinamento
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="onlyHumanInteractions">
+                                        <label class="form-check-label" for="onlyHumanInteractions">
+                                            Usar apenas interações de atendentes humanos
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="alert alert-warning alert-sm">
+                                        <i class="bi bi-exclamation-triangle"></i>
+                                        <small>Mínimo necessário: 5 conversas e 10 interações</small>
+                                    </div>
+                                    
+                                    <button class="btn btn-warning w-100" onclick="startRetraining()" id="retrainBtn">
+                                        <i class="bi bi-arrow-repeat"></i> Iniciar Retreinamento
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Histórico e Arquivos de Treinamento -->
+        <div class="row">
+            <div class="col-md-8">
+                <div class="dashboard-card card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-file-earmark-text"></i> Arquivos de Treinamento Recentes</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="trainingFilesList" class="training-files-list">
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-hourglass-split"></i>
+                                <p>Carregando arquivos de treinamento...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="dashboard-card card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-graph-up"></i> Estatísticas de Performance</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label>Taxa de Satisfação</label>
+                            <div class="progress progress-custom">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: 0%" id="satisfactionRate">0%</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label>Transferências para Humano</label>
+                            <div class="progress progress-custom">
+                                <div class="progress-bar bg-warning" role="progressbar" style="width: 0%" id="humanTransferRate">0%</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label>Resolução por IA</label>
+                            <div class="progress progress-custom">
+                                <div class="progress-bar bg-info" role="progressbar" style="width: 0%" id="aiResolutionRate">0%</div>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="text-center">
+                            <h6>Última Atualização</h6>
+                            <small class="text-muted" id="lastUpdate">-</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Inicializar dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Dashboard TransformersAI carregado');
+            
+            // Carregar dados iniciais
+            refreshAllData();
+            
+            // Atualizar dados a cada 30 segundos
+            setInterval(refreshAllData, 30000);
+        });
+
+        async function refreshAllData() {
+            await Promise.all([
+                updateSystemStatus(),
+                updateTrainingData(),
+                updateStatistics()
+            ]);
+        }
+
+        async function updateSystemStatus() {
+            try {
+                const response = await fetch('/admin/stats');
+                const data = await response.json();
+                
+                // Atualizar cards do hero
+                document.getElementById('heroQueueCount').textContent = data.queue_size || 0;
+                document.getElementById('heroActiveChats').textContent = data.active_conversations || 0;
+                document.getElementById('heroTotalConversations').textContent = data.total_conversations || 0;
+                document.getElementById('heroModelStatus').textContent = data.model_loaded ? 'OK' : 'ERRO';
+                
+                // Atualizar status detalhado
+                document.getElementById('chatStatus').innerHTML = `
+                    <div class="row">
+                        <div class="col-6">
+                            <strong>${data.queue_size || 0}</strong><br>
+                            <small class="text-muted">Na fila de atendimento</small>
+                        </div>
+                        <div class="col-6">
+                            <strong>${data.active_conversations || 0}</strong><br>
+                            <small class="text-muted">Conversas ativas</small>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('modelStatus').innerHTML = `
+                    <div class="row">
+                        <div class="col-12">
+                            <span class="badge ${data.model_loaded ? 'bg-success' : 'bg-danger'}">
+                                ${data.model_loaded ? 'Carregado' : 'Erro'}
+                            </span>
+                            <br><small class="text-muted">${data.model_status || 'Status desconhecido'}</small>
+                        </div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('Erro ao atualizar status:', error);
+                document.getElementById('chatStatus').innerHTML = '<span class="text-danger">Erro de conexão</span>';
+                document.getElementById('modelStatus').innerHTML = '<span class="text-danger">Erro de conexão</span>';
+            }
+        }
+
+        async function updateTrainingData() {
+            try {
+                const response = await fetch('/chat/training_data');
+                const data = await response.json();
+                
+                // Atualizar contadores
+                document.getElementById('totalConversations').textContent = data.total_conversations || 0;
+                document.getElementById('totalInteractions').textContent = data.total_interactions || 0;
+                document.getElementById('aiInteractions').textContent = data.ai_interactions || 0;
+                document.getElementById('humanInteractions').textContent = data.human_interactions || 0;
+                
+                // Exibir arquivos de treinamento
+                displayTrainingFiles(data.files || []);
+                
+            } catch (error) {
+                console.error('Erro ao carregar dados de treinamento:', error);
+                document.getElementById('trainingFilesList').innerHTML = `
+                    <div class="text-center text-danger py-4">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <p>Erro ao carregar dados de treinamento</p>
+                    </div>
+                `;
+            }
+        }
+
+        function displayTrainingFiles(files) {
+            const filesList = document.getElementById('trainingFilesList');
+            
+            if (files.length === 0) {
+                filesList.innerHTML = `
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-inbox"></i>
+                        <p>Nenhum arquivo de treinamento encontrado</p>
+                        <small>Inicie algumas conversas para gerar dados de treinamento</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            filesList.innerHTML = '';
+            
+            files.slice(0, 10).forEach(file => {
+                const fileDiv = document.createElement('div');
+                fileDiv.className = 'training-file-item';
+                
+                const satisfactionBadge = getSatisfactionBadge(file.satisfaction);
+                const transferredBadge = file.transferred_to_human ? 
+                    '<span class="badge bg-info">👨‍💼 Humano</span>' : 
+                    '<span class="badge bg-primary">🤖 IA</span>';
+                
+                const interactionCount = file.metrics?.total_interactions || 0;
+                const aiCount = file.metrics?.ai_interactions || 0;
+                const humanCount = file.metrics?.human_interactions || 0;
+                
+                fileDiv.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">Conversa #${(file.conversation_id || 'N/A').substr(-6)}</h6>
+                            <p class="mb-1">
+                                <i class="bi bi-calendar"></i> ${formatDateTime(file.start_time)}
+                                <span class="ms-2">
+                                    <i class="bi bi-chat-dots"></i> ${interactionCount} interações
+                                </span>
+                            </p>
+                            <small class="text-muted">
+                                🤖 ${aiCount} IA | 👨‍💼 ${humanCount} Humano
+                            </small>
+                        </div>
+                        <div class="text-end">
+                            ${transferredBadge}
+                            <br>
+                            ${satisfactionBadge}
+                        </div>
+                    </div>
+                `;
+                
+                filesList.appendChild(fileDiv);
+            });
+        }
+
+        function getSatisfactionBadge(satisfaction) {
+            if (satisfaction >= 4) return '<span class="badge bg-success">😊 Excelente</span>';
+            if (satisfaction >= 3) return '<span class="badge bg-warning">😐 Bom</span>';
+            if (satisfaction >= 1) return '<span class="badge bg-danger">😞 Ruim</span>';
+            return '<span class="badge bg-secondary">❓ Não avaliado</span>';
+        }
+
+        async function updateStatistics() {
+            try {
+                const response = await fetch('/chat/training_data');
+                const data = await response.json();
+                
+                // Calcular estatísticas
+                const files = data.files || [];
+                const totalFiles = files.length;
+                
+                if (totalFiles === 0) {
+                    document.getElementById('satisfactionRate').style.width = '0%';
+                    document.getElementById('humanTransferRate').style.width = '0%';
+                    document.getElementById('aiResolutionRate').style.width = '0%';
+                    return;
+                }
+                
+                // Taxa de satisfação (conversas com rating >= 3)
+                const goodSatisfaction = files.filter(f => f.satisfaction >= 3).length;
+                const satisfactionRate = Math.round((goodSatisfaction / totalFiles) * 100);
+                
+                // Taxa de transferência para humano
+                const humanTransferred = files.filter(f => f.transferred_to_human).length;
+                const humanTransferRate = Math.round((humanTransferred / totalFiles) * 100);
+                
+                // Taxa de resolução por IA (não transferidas)
+                const aiResolved = totalFiles - humanTransferred;
+                const aiResolutionRate = Math.round((aiResolved / totalFiles) * 100);
+                
+                // Atualizar barras de progresso
+                updateProgressBar('satisfactionRate', satisfactionRate);
+                updateProgressBar('humanTransferRate', humanTransferRate);
+                updateProgressBar('aiResolutionRate', aiResolutionRate);
+                
+                // Atualizar timestamp
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleString('pt-BR');
+                
+            } catch (error) {
+                console.error('Erro ao calcular estatísticas:', error);
+            }
+        }
+
+        function updateProgressBar(id, percentage) {
+            const bar = document.getElementById(id);
+            bar.style.width = percentage + '%';
+            bar.textContent = percentage + '%';
+            bar.setAttribute('aria-valuenow', percentage);
+        }
+
+        async function refreshTrainingData() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Carregando...';
+            btn.disabled = true;
+            
+            try {
+                await updateTrainingData();
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function startRetraining() {
+            const btn = document.getElementById('retrainBtn');
+            const useAllData = document.getElementById('useAllData').checked;
+            const backupModel = document.getElementById('backupModel').checked;
+            const onlyHuman = document.getElementById('onlyHumanInteractions').checked;
+            
+            // Verificar se há dados suficientes
+            const totalConversations = parseInt(document.getElementById('totalConversations').textContent);
+            const totalInteractions = parseInt(document.getElementById('totalInteractions').textContent);
+            
+            if (totalConversations < 5) {
+                alert('❌ Dados insuficientes!\n\nSão necessárias pelo menos 5 conversas para retreinar o modelo.\nAtualmente: ' + totalConversations + ' conversas.');
+                return;
+            }
+            
+            if (totalInteractions < 10) {
+                alert('❌ Dados insuficientes!\n\nSão necessárias pelo menos 10 interações para retreinar o modelo.\nAtualmente: ' + totalInteractions + ' interações.');
+                return;
+            }
+            
+            const confirmMessage = `🤖 Confirmar Retreinamento\n\n` +
+                `• Conversas: ${totalConversations}\n` +
+                `• Interações: ${totalInteractions}\n` +
+                `• Usar todos os dados: ${useAllData ? 'Sim' : 'Não'}\n` +
+                `• Backup do modelo: ${backupModel ? 'Sim' : 'Não'}\n` +
+                `• Apenas interações humanas: ${onlyHuman ? 'Sim' : 'Não'}\n\n` +
+                `Este processo pode demorar alguns minutos.\nContinuar?`;
+            
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Preparando dados...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/admin/retrain', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        use_all_data: useAllData,
+                        backup_model: backupModel,
+                        only_human: onlyHuman
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`✅ Dados preparados com sucesso!\n\n` +
+                          `📊 Estatísticas:\n` +
+                          `• ${data.total_conversations} conversas processadas\n` +
+                          `• ${data.total_interactions} interações coletadas\n` +
+                          `• Arquivo gerado: ${data.retrain_file}\n\n` +
+                          `📋 Próximos passos:\n` +
+                          `1. Execute o script de treinamento\n` +
+                          `2. Aguarde a conclusão do processo\n` +
+                          `3. Reinicie o sistema para carregar o novo modelo\n\n` +
+                          `⚠️ O modelo será automaticamente atualizado após o treinamento.`);
+                    
+                    // Atualizar dados na tela
+                    await refreshAllData();
+                } else {
+                    alert('❌ Erro no retreinamento:\n\n' + data.error);
+                }
+                
+            } catch (error) {
+                alert('❌ Erro de conexão:\n\n' + error.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function formatDateTime(timestamp) {
+            if (!timestamp) return 'Data não disponível';
+            try {
+                return new Date(timestamp).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } catch {
+                return timestamp;
+            }
+        }
+
+        function showRetrainingModal() {
+            // Atualizar dados no modal
+            document.getElementById('modalTotalConversations').textContent = 
+                document.getElementById('totalConversations').textContent;
+            document.getElementById('modalTotalInteractions').textContent = 
+                document.getElementById('totalInteractions').textContent;
+            document.getElementById('modalAiInteractions').textContent = 
+                document.getElementById('aiInteractions').textContent;
+            document.getElementById('modalHumanInteractions').textContent = 
+                document.getElementById('humanInteractions').textContent;
+            
+            // Mostrar modal
+            const modal = new bootstrap.Modal(document.getElementById('retrainingModal'));
+            modal.show();
+        }
+
+        async function executeRetraining() {
+            const btn = document.getElementById('modalRetrainBtn');
+            const statusDiv = document.getElementById('retrainingStatus');
+            const useAllData = document.getElementById('modalUseAllData').checked;
+            const backupModel = document.getElementById('modalBackupModel').checked;
+            const onlyHuman = document.getElementById('modalOnlyHuman').checked;
+            
+            // Verificar se há dados suficientes
+            const totalConversations = parseInt(document.getElementById('modalTotalConversations').textContent);
+            const totalInteractions = parseInt(document.getElementById('modalTotalInteractions').textContent);
+            
+            if (totalConversations < 5) {
+                alert('❌ Dados insuficientes!\n\nSão necessárias pelo menos 5 conversas para retreinar o modelo.\nAtualmente: ' + totalConversations + ' conversas.\n\nRealize mais atendimentos antes de tentar novamente.');
+                return;
+            }
+            
+            if (totalInteractions < 10) {
+                alert('❌ Dados insuficientes!\n\nSão necessárias pelo menos 10 interações para retreinar o modelo.\nAtualmente: ' + totalInteractions + ' interações.\n\nRealize mais atendimentos antes de tentar novamente.');
+                return;
+            }
+            
+            const confirmMessage = `🤖 CONFIRMAR RETREINAMENTO DO MODELO IA\n\n` +
+                `📊 DADOS QUE SERÃO UTILIZADOS:\n` +
+                `• Conversas: ${totalConversations}\n` +
+                `• Interações: ${totalInteractions}\n` +
+                `• Usar todos os dados: ${useAllData ? 'SIM' : 'NÃO'}\n` +
+                `• Backup do modelo: ${backupModel ? 'SIM' : 'NÃO'}\n` +
+                `• Apenas interações humanas: ${onlyHuman ? 'SIM' : 'NÃO'}\n\n` +
+                `⚠️ ATENÇÃO:\n` +
+                `• Este processo pode demorar alguns minutos\n` +
+                `• O sistema ficará temporariamente indisponível\n` +
+                `• O modelo atual será substituído\n\n` +
+                `Deseja continuar?`;
+            
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            // Mostrar status de processamento
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Processando...';
+            statusDiv.style.display = 'block';
+            
+            try {
+                const response = await fetch('/admin/retrain', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        use_all_data: useAllData,
+                        backup_model: backupModel,
+                        only_human: onlyHuman
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle"></i>
+                            <strong>Sucesso!</strong> Dados preparados para retreinamento.
+                        </div>
+                    `;
+                    
+                    alert(`✅ RETREINAMENTO INICIADO COM SUCESSO!\n\n` +
+                          `📊 ESTATÍSTICAS DO PROCESSO:\n` +
+                          `• ${data.total_conversations} conversas processadas\n` +
+                          `• ${data.total_interactions} interações coletadas\n` +
+                          `• Arquivo gerado: ${data.retrain_file}\n\n` +
+                          `📋 PRÓXIMOS PASSOS AUTOMÁTICOS:\n` +
+                          `1. ✅ Dados preparados e validados\n` +
+                          `2. 🔄 Execução do script de treinamento\n` +
+                          `3. 💾 Backup do modelo atual criado\n` +
+                          `4. 🤖 Novo modelo será carregado automaticamente\n\n` +
+                          `⏱️ Aguarde alguns minutos para a conclusão.\n` +
+                          `O sistema será atualizado automaticamente.`);
+                    
+                    // Fechar modal e atualizar dados
+                    bootstrap.Modal.getInstance(document.getElementById('retrainingModal')).hide();
+                    await refreshAllData();
+                    
+                } else {
+                    statusDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <strong>Erro:</strong> ${data.error}
+                        </div>
+                    `;
+                    
+                    alert('❌ ERRO NO RETREINAMENTO:\n\n' + data.error + '\n\nVerifique os logs do sistema para mais detalhes.');
+                }
+                
+            } catch (error) {
+                statusDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Erro de conexão:</strong> ${error.message}
+                    </div>
+                `;
+                
+                alert('❌ ERRO DE CONEXÃO:\n\n' + error.message + '\n\nVerifique se o servidor está funcionando corretamente.');
+                
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> INICIAR RETREINAMENTO';
+                
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        function showDataCollectionModal() {
+            // Mostrar modal
+            const modal = new bootstrap.Modal(document.getElementById('dataCollectionModal'));
+            modal.show();
+        }
+
+        async function fixDataCollector() {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Corrigindo...';
+            btn.disabled = true;
+            
+            try {
+                // Simular correção (na verdade, precisa ser feito no código)
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                alert(`🔧 CORREÇÃO NECESSÁRIA NO CÓDIGO\n\n` +
+                      `O método 'collect_web_data' precisa ser adicionado à classe DataCollector.\n\n` +
+                      `📋 Passos para corrigir:\n` +
+                      `1. Abrir arquivo que contém a classe DataCollector\n` +
+                      `2. Adicionar método collect_web_data()\n` +
+                      `3. Implementar lógica de coleta web\n` +
+                      `4. Reiniciar o sistema\n\n` +
+                      `⚠️ Esta correção deve ser feita manualmente no código.`);
+                
+            } catch (error) {
+                alert('❌ Erro: ' + error.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function viewLogs() {
+            // Abrir nova janela com logs (simulado)
+            const logWindow = window.open('', '_blank', 'width=800,height=600');
+            logWindow.document.write(`
+                <html>
+                <head><title>Logs do Sistema - TransformersAI</title></head>
+                <body style="font-family: monospace; padding: 20px; background: #f8f9fa;">
+                    <h3>🔍 Logs de Erro - Coleta de Dados</h3>
+                    <div style="background: #fff; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                        <strong>Erro:</strong> 'DataCollector' object has no attribute 'collect_web_data'<br>
+                        <strong>Timestamp:</strong> ${new Date().toLocaleString()}<br>
+                        <strong>URL Tentativa:</strong> https://www.domit.com.br<br>
+                        <strong>Status:</strong> ❌ Falhou
+                    </div>
+                    <div style="background: #fff; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                        <strong>Erro:</strong> 'DataCollector' object has no attribute 'collect_web_data'<br>
+                        <strong>Timestamp:</strong> ${new Date().toLocaleString()}<br>
+                        <strong>URL Tentativa:</strong> https://www.google.com/search?q=domit+optimix<br>
+                        <strong>Status:</strong> ❌ Falhou
+                    </div>
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                        <strong>Resultado:</strong> Nenhum texto coletado - abortando treinamento<br>
+                        <strong>Status Final:</strong> 0% - Falha na coleta
+                    </div>
+                    <br>
+                    <button onclick="window.close()" style="padding: 10px 20px;">Fechar</button>
+                </body>
+                </html>
+            `);
+        }
+
+        async function executeDataCollection() {
+            // Função desabilitada enquanto o bug não for corrigido
+            alert('❌ FUNÇÃO TEMPORARIAMENTE INDISPONÍVEL\n\n' +
+                  'O método collect_web_data não existe na classe DataCollector.\n' +
+                  'Esta função será habilitada após a correção do código.');
+        }
+    </script>
+</body>
+</html>

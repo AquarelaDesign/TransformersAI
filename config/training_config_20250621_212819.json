@@ -1,0 +1,11 @@
+{
+  "base_model": "microsoft/DialoGPT-small",
+  "web_sources": [
+    "https://www.domit.com.br/",
+    "https://www.google.com/search?q=optimix+domit&num=10&newwindow=1&sca_esv=e2ac7e5363cb24f5&rlz=1C1FCXM_pt-PTBR995BR995&biw=1440&bih=765&sxsrf=AE3TifMMA25nWgZquyGwSzsnMUmgC7UNww%3A1750551544668&ei=-EtXaNy-KOvT1sQPp-nqyQU&ved=0ahUKEwjcmuzX4IOOAxXrqZUCHae0OlkQ4dUDCBA&uact=5&oq=optimix+domit&gs_lp=Egxnd3Mtd2l6LXNlcnAiDW9wdGltaXggZG9taXQyBhAAGBYYHjIIEAAYgAQYogQyCBAAGIAEGKIEMggQABiABBiiBDIIEAAYgAQYogRI4xVQzQJYrxRwAXgBkAEAmAGhAaABtAaqAQMwLja4AQPIAQD4AQGYAgegAtgGwgIKEAAYsAMY1gQYR8ICDRAAGIAEGLADGEMYigXCAgUQABiABMICBxAAGIAEGArCAg4QLhiABBjHARjLARivAcICCBAAGIAEGMsBwgIKEAAYgAQYChjLAcICCBAAGBYYChgewgIFEAAY7wWYAwCIBgGQBgmSBwMxLjagB_4esgcDMC42uAfQBsIHBzAuMy4zLjHIBx4&sclient=gws-wiz-serp"
+  ],
+  "keywords": [],
+  "epochs": 3,
+  "batch_size": 1,
+  "max_length": 256
+}

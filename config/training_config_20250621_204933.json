@@ -1,0 +1,13 @@
+{
+  "base_model": "microsoft/DialoGPT-small",
+  "web_sources": [
+    "https://www.domit.com.br"
+  ],
+  "keywords": [
+    "domit",
+    "optimix",
+    "winlabs"
+  ],
+  "epochs": 3,
+  "batch_size": 4
+}

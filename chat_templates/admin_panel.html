@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Atendimento Humano</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body {
+            background: #f8f9fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        .navbar-brand {
+            font-weight: 600;
+        }
+        
+        /* Layout responsivo */
+        .admin-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .sidebar {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            height: fit-content;
+        }
+        
+        .main-chat {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            height: calc(100vh - 200px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Informações do agente */
+        .agent-panel {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .agent-name-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            border-radius: 5px;
+            padding: 8px 12px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        .agent-name-input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .agent-name-input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .update-name-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        .update-name-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+        }
+        
+        /* Fila e conversas ativas */
+        .queue-section {
+            margin-bottom: 20px;
+        }
+        
+        .queue-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .queue-item:hover {
+            background: #e3f2fd;
+            border-color: #007bff;
+            transform: translateY(-1px);
+        }
+        
+        .queue-item.active {
+            background: #007bff;
+            color: white;
+            border-color: #0056b3;
+        }
+        
+        .client-badge {
+            background: #007bff;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+        }
+        
+        .waiting-badge {
+            background: #ffc107;
+            color: #212529;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+        }
+        
+        /* Chat area */
+        .chat-header {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 20px;
+            border-radius: 10px 10px 0 0;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+        
+        .chat-input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+            border-radius: 0 0 10px 10px;
+        }
+        
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .message.user {
+            justify-content: flex-end;
+        }
+        
+        .message.agent {
+            justify-content: flex-start;
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 15px;
+            font-size: 14px;
+            line-height: 1.4;
+            white-space: pre-line;
+            word-wrap: break-word;
+        }
+        
+        .message.user .message-content {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 15px 15px 5px 15px;
+        }
+        
+        .message.agent .message-content {
+            background: #007bff;
+            color: white;
+            border-radius: 15px 15px 15px 5px;
+        }
+        
+        .message.bot .message-content {
+            background: #f1f3f4;
+            border: 1px solid #e0e0e0;
+            border-radius: 15px 15px 15px 5px;
+        }
+        
+        .message.system .message-content {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            border-radius: 10px;
+            text-align: center;
+            max-width: 100%;
+            font-style: italic;
+        }
+        
+        .message-info {
+            font-size: 11px;
+            color: #6c757d;
+            margin-top: 5px;
+            margin-left: 5px;
+        }
+        
+        .message.user .message-info {
+            text-align: right;
+            margin-right: 5px;
+            margin-left: 0;
+        }
+        
+        /* Client info */
+        .client-info {
+            background: #e8f4fd;
+            border: 1px solid #bee5eb;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .client-name {
+            font-weight: 600;
+            color: #0c5460;
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+        
+        .client-details {
+            color: #0c5460;
+            font-size: 13px;
+        }
+        
+        /* Quick responses */
+        .quick-responses {
+            margin-bottom: 15px;
+        }
+        
+        .quick-response-btn {
+            background: #e9ecef;
+            border: 1px solid #ced4da;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 12px;
+            margin: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .quick-response-btn:hover {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        
+        .chat-input {
+            flex: 1;
+            border: 1px solid #e9ecef;
+            border-radius: 25px;
+            padding: 12px 20px;
+            font-size: 14px;
+            outline: none;
+            resize: none;
+            min-height: 45px;
+            max-height: 120px;
+        }
+        
+        .send-button {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: #007bff;
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 10px;
+            transition: all 0.2s;
+        }
+        
+        .send-button:hover {
+            background: #0056b3;
+            transform: scale(1.05);
+        }
+        
+        .no-conversation {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #6c757d;
+            text-align: center;
+        }
+        
+        .stats-card {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .stats-number {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #007bff;
+        }
+        
+        .typing-indicator {
+            color: #6c757d;
+            font-style: italic;
+            font-size: 12px;
+            padding: 5px 15px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <span class="navbar-brand">
+                <i class="bi bi-headset"></i> Painel de Atendimento
+            </span>
+            <div class="d-flex align-items-center">
+                <span class="badge bg-light text-dark me-3" id="agentStatus">
+                    <i class="bi bi-circle-fill text-success"></i> Online
+                </span>
+                <button class="btn btn-outline-light btn-sm" onclick="toggleAvailability()">
+                    <i class="bi bi-power" id="powerIcon"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="admin-container">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-4">
+                <!-- Painel do Agente -->
+                <div class="agent-panel">
+                    <h6><i class="bi bi-person-badge"></i> Informações do Agente</h6>
+                    <input type="text" class="agent-name-input" id="agentNameInput" 
+                           placeholder="Digite seu nome..." value="">
+                    <button class="btn update-name-btn btn-sm" onclick="updateAgentName()">
+                        <i class="bi bi-check"></i> Atualizar
+                    </button>
+                    <div class="mt-2" style="font-size: 12px; opacity: 0.8;">
+                        ID: <span id="agentIdDisplay">-</span> | 
+                        Sessão: <span id="sessionTime">0 min</span>
+                    </div>
+                </div>
+
+                <!-- Estatísticas -->
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <div class="stats-card">
+                            <div class="stats-number" id="queueCount">0</div>
+                            <div>Na Fila</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stats-card">
+                            <div class="stats-number" id="activeChats">0</div>
+                            <div>Ativos</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fila de atendimento -->
+                <div class="queue-section">
+                    <h6><i class="bi bi-list-ul"></i> Fila de Atendimento 
+                        <button class="btn btn-sm btn-outline-primary float-end" onclick="refreshQueue()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </h6>
+                    <div id="queueList">
+                        <div class="text-center text-muted py-3">
+                            <i class="bi bi-inbox"></i><br>
+                            <small>Nenhuma conversa na fila</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Conversas ativas -->
+                <div class="queue-section">
+                    <h6><i class="bi bi-chat-dots"></i> Minhas Conversas</h6>
+                    <div id="activeConversations">
+                        <div class="text-center text-muted py-3">
+                            <small>Nenhuma conversa ativa</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Histórico de Conversas -->
+                <div class="queue-section">
+                    <h6><i class="bi bi-clock-history"></i> Histórico 
+                        <button class="btn btn-sm btn-outline-secondary float-end" onclick="refreshHistory()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </h6>
+                    <div id="conversationHistory">
+                        <div class="text-center text-muted py-3">
+                            <small>Carregando histórico...</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Área principal do chat -->
+            <div class="col-md-8">
+                <div class="main-chat">
+                    <!-- Header do chat atual -->
+                    <div class="chat-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-1" id="chatTitle">Selecione uma conversa</h5>
+                                <small id="chatSubtitle">Escolha uma conversa da fila ou das ativas</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-light" id="endChatBtn" 
+                                    onclick="endConversation()" style="display: none;">
+                                <i class="bi bi-x-circle"></i> Encerrar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Área de mensagens -->
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="no-conversation">
+                            <div>
+                                <i class="bi bi-chat-square-dots display-1"></i>
+                                <p class="mt-3">Selecione uma conversa para começar</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Área de input -->
+                    <div class="chat-input-area" id="chatInputContainer" style="display: none;">
+                        <!-- Informações do cliente -->
+                        <div id="clientInfoSection" style="display: none;">
+                            <div class="client-info" id="clientInfo">
+                                <div class="client-name">Cliente não identificado</div>
+                                <div class="client-details"></div>
+                            </div>
+                        </div>
+
+                        <!-- Respostas rápidas -->
+                        <div class="quick-responses">
+                            <button class="quick-response-btn" onclick="insertQuickResponse('Olá! Sou ${agentName}, atendente humano. Como posso ajudá-lo?')">
+                                Apresentação
+                            </button>
+                            <button class="quick-response-btn" onclick="insertQuickResponse('Entendi sua situação. Vou verificar isso para você.')">
+                                Verificando
+                            </button>
+                            <button class="quick-response-btn" onclick="insertQuickResponse('Há mais alguma coisa em que posso ajudá-lo?')">
+                                Mais ajuda
+                            </button>
+                            <button class="quick-response-btn" onclick="insertQuickResponse('Foi um prazer atendê-lo! Tenha um ótimo dia!')">
+                                Despedida
+                            </button>
+                        </div>
+                        
+                        <!-- Input de mensagem -->
+                        <div class="d-flex align-items-end">
+                            <textarea class="chat-input" id="messageInput" 
+                                     placeholder="Digite sua mensagem..." 
+                                     rows="1"></textarea>
+                            <button class="send-button" onclick="sendMessage()">
+                                <i class="bi bi-send"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Variáveis globais
+        let currentConversationId = null;
+        let isAgentAvailable = true;
+        let agentId = 'agent_' + Math.random().toString(36).substr(2, 9);
+        let agentName = '';
+        let updateInterval = null;
+        let sessionStartTime = new Date();
+
+        // Inicializar painel
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Painel administrativo carregado');
+            
+            // Configurar ID do agente
+            document.getElementById('agentIdDisplay').textContent = agentId;
+            updateSessionTime();
+            
+            // Event listener para Enter no textarea
+            const messageInput = document.getElementById('messageInput');
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            
+            // Auto-resize do textarea
+            messageInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            });
+            
+            // Atualizar tempo de sessão a cada minuto
+            setInterval(updateSessionTime, 60000);
+            
+            // Começar atualizações automáticas
+            startAutoUpdates();
+            
+            // Carregar dados iniciais
+            refreshQueue();
+            updateStats();
+            refreshHistory();
+        });
+        
+        function updateAgentName() {
+            const nameInput = document.getElementById('agentNameInput');
+            const newName = nameInput.value.trim();
+            
+            if (newName && newName.length >= 2) {
+                agentName = newName;
+                
+                // Feedback visual
+                const updateBtn = document.querySelector('.update-name-btn');
+                const originalText = updateBtn.innerHTML;
+                updateBtn.innerHTML = '<i class="bi bi-check-circle"></i> Salvo';
+                updateBtn.style.background = 'rgba(40, 167, 69, 0.3)';
+                
+                setTimeout(() => {
+                    updateBtn.innerHTML = originalText;
+                    updateBtn.style.background = '';
+                }, 2000);
+                
+                console.log('Nome do agente atualizado para:', agentName);
+            } else {
+                alert('Digite um nome com pelo menos 2 caracteres');
+                nameInput.focus();
+            }
+        }
+        
+        function updateSessionTime() {
+            const now = new Date();
+            const sessionDuration = Math.floor((now - sessionStartTime) / (1000 * 60));
+            document.getElementById('sessionTime').textContent = `${sessionDuration} min`;
+        }
+
+        async function refreshQueue() {
+            try {
+                const response = await fetch('/admin/queue');
+                const data = await response.json();
+                
+                displayQueue(data.queue || []);
+                displayActiveConversations(data.active_conversations || []);
+                
+            } catch (error) {
+                console.error('Erro ao carregar fila:', error);
+            }
+        }
+
+        function displayQueue(queue) {
+            const queueList = document.getElementById('queueList');
+            
+            if (queue.length === 0) {
+                queueList.innerHTML = `
+                    <div class="text-center text-muted py-3">
+                        <i class="bi bi-inbox"></i><br>
+                        <small>Nenhuma conversa na fila</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            queueList.innerHTML = '';
+            
+            queue.forEach((item, index) => {
+                const queueItem = document.createElement('div');
+                queueItem.className = 'queue-item';
+                queueItem.onclick = () => acceptConversation(item.conversation_id);
+                
+                queueItem.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="client-badge">Cliente #${item.conversation_id.substr(-6)}</span>
+                            <div class="mt-1">
+                                <small class="text-muted">
+                                    <i class="bi bi-clock"></i> ${item.waiting_time}
+                                </small>
+                            </div>
+                        </div>
+                        <span class="waiting-badge">Pos. ${index + 1}</span>
+                    </div>
+                `;
+                
+                queueList.appendChild(queueItem);
+            });
+        }
+
+        function displayActiveConversations(conversations) {
+            const activeList = document.getElementById('activeConversations');
+            
+            if (conversations.length === 0) {
+                activeList.innerHTML = `
+                    <div class="text-center text-muted py-3">
+                        <small>Nenhuma conversa ativa</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            activeList.innerHTML = '';
+            
+            conversations.forEach(conv => {
+                const item = document.createElement('div');
+                item.className = `queue-item ${conv.conversation_id === currentConversationId ? 'active' : ''}`;
+                item.onclick = () => loadConversation(conv.conversation_id);
+                
+                item.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="client-badge bg-success">Cliente #${conv.conversation_id.substr(-6)}</span>
+                            <div class="mt-1">
+                                <small class="text-muted">
+                                    <i class="bi bi-person-check"></i> Ativo
+                                </small>
+                            </div>
+                        </div>
+                        <i class="bi bi-arrow-right"></i>
+                    </div>
+                `;
+                
+                activeList.appendChild(item);
+            });
+        }
+
+        async function acceptConversation(conversationId) {
+            if (!agentName) {
+                alert('Digite seu nome antes de aceitar conversas');
+                document.getElementById('agentNameInput').focus();
+                return;
+            }
+            
+            try {
+                const response = await fetch('/admin/accept', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        conversation_id: conversationId,
+                        agent_id: agentId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentConversationId = conversationId;
+                    loadConversation(conversationId);
+                    refreshQueue();
+                } else {
+                    alert('Erro ao aceitar conversa: ' + data.message);
+                }
+                
+            } catch (error) {
+                console.error('Erro ao aceitar conversa:', error);
+                alert('Erro de conexão ao aceitar conversa');
+            }
+        }
+
+        async function loadConversation(conversationId, setAsCurrent = true) {
+            try {
+                const response = await fetch(`/admin/conversation/${conversationId}`);
+                const data = await response.json();
+                
+                if (data.conversation) {
+                    if (setAsCurrent) {
+                        currentConversationId = conversationId;
+                    }
+                    
+                    displayClientInfo(data.conversation);
+                    displayConversation(data.conversation);
+                    showChatInput();
+                    
+                    // Atualizar header
+                    const clientName = data.conversation.client_data?.name || `Cliente #${conversationId.substr(-6)}`;
+                    document.getElementById('chatTitle').textContent = clientName;
+                    document.getElementById('chatSubtitle').textContent = `Conversa iniciada: ${formatTime(data.conversation.start_time)}`;
+                }
+                
+            } catch (error) {
+                console.error('Erro ao carregar conversa:', error);
+            }
+        }
+        
+        function displayClientInfo(conversation) {
+            const clientInfoSection = document.getElementById('clientInfoSection');
+            const clientInfo = document.getElementById('clientInfo');
+            
+            const clientData = conversation.client_data || {};
+            
+            if (clientData.name || clientData.email) {
+                const clientName = clientData.name || 'Cliente não identificado';
+                const clientEmail = clientData.email || '';
+                const clientPhone = clientData.phone || '';
+                
+                clientInfo.innerHTML = `
+                    <div class="client-name"><i class="bi bi-person-circle"></i> ${clientName}</div>
+                    <div class="client-details">
+                        ${clientEmail ? `<i class="bi bi-envelope"></i> ${clientEmail}` : ''}
+                        ${clientPhone ? ` | <i class="bi bi-telephone"></i> ${clientPhone}` : ''}
+                        <br><small><i class="bi bi-calendar"></i> ${formatDate(clientData.collected_at)}</small>
+                    </div>
+                `;
+                
+                clientInfoSection.style.display = 'block';
+            } else {
+                clientInfoSection.style.display = 'none';
+            }
+        }
+
+        function displayConversation(conversation) {
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = '';
+            
+            conversation.messages.forEach((msg, index) => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${msg.type}`;
+                
+                let messageLabel = '';
+                switch(msg.type) {
+                    case 'bot':
+                        messageLabel = '(IA)';
+                        break;
+                    case 'agent':
+                        messageLabel = '(Atendente)';
+                        break;
+                    case 'user':
+                        messageLabel = '';
+                        break;
+                    case 'system':
+                        messageLabel = '(Sistema)';
+                        break;
+                }
+                
+                messageDiv.innerHTML = `
+                    <div class="message-content">${msg.content}</div>
+                    <div class="message-info">
+                        ${formatTime(msg.timestamp)} ${messageLabel}
+                    </div>
+                `;
+                
+                chatMessages.appendChild(messageDiv);
+            });
+            
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function showChatInput() {
+            document.getElementById('chatInputContainer').style.display = 'block';
+            document.getElementById('endChatBtn').style.display = 'block';
+        }
+
+        async function sendMessage() {
+            if (!agentName) {
+                alert('Digite seu nome antes de enviar mensagens');
+                document.getElementById('agentNameInput').focus();
+                return;
+            }
+            
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            if (!message || !currentConversationId) return;
+            
+            messageInput.disabled = true;
+            
+            try {
+                const response = await fetch('/admin/send_message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        conversation_id: currentConversationId,
+                        message: message,
+                        agent_id: agentId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    messageInput.value = '';
+                    messageInput.style.height = 'auto';
+                    
+                    // Adicionar mensagem imediatamente
+                    const chatMessages = document.getElementById('chatMessages');
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'message agent';
+                    
+                    messageDiv.innerHTML = `
+                        <div class="message-content">${message}</div>
+                        <div class="message-info">
+                            ${formatTime(new Date().toISOString())} (${agentName})
+                        </div>
+                    `;
+                    
+                    chatMessages.appendChild(messageDiv);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                } else {
+                    alert('Erro ao enviar mensagem: ' + data.message);
+                }
+                
+            } catch (error) {
+                console.error('Erro ao enviar mensagem:', error);
+                alert('Erro de conexão');
+            } finally {
+                messageInput.disabled = false;
+                messageInput.focus();
+            }
+        }
+
+        function insertQuickResponse(text) {
+            const processedText = text.replace('${agentName}', agentName || 'Atendente');
+            const messageInput = document.getElementById('messageInput');
+            messageInput.value = processedText;
+            messageInput.focus();
+            messageInput.style.height = 'auto';
+            messageInput.style.height = Math.min(messageInput.scrollHeight, 120) + 'px';
+        }
+
+        async function endConversation() {
+            if (!currentConversationId) return;
+            
+            if (!confirm('Tem certeza que deseja encerrar esta conversa?')) return;
+            
+            try {
+                const response = await fetch('/admin/end_conversation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        conversation_id: currentConversationId,
+                        agent_id: agentId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentConversationId = null;
+                    document.getElementById('chatMessages').innerHTML = `
+                        <div class="no-conversation">
+                            <div>
+                                <i class="bi bi-check-circle display-1 text-success"></i>
+                                <p class="mt-3">Conversa encerrada com sucesso</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    document.getElementById('chatInputContainer').style.display = 'none';
+                    document.getElementById('endChatBtn').style.display = 'none';
+                    document.getElementById('chatTitle').textContent = 'Selecione uma conversa';
+                    document.getElementById('chatSubtitle').textContent = 'Escolha uma conversa da fila ou das ativas';
+                    
+                    refreshQueue();
+                } else {
+                    alert('Erro ao encerrar conversa: ' + data.message);
+                }
+                
+            } catch (error) {
+                console.error('Erro ao encerrar conversa:', error);
+                alert('Erro de conexão');
+            }
+        }
+
+        function toggleAvailability() {
+            isAgentAvailable = !isAgentAvailable;
+            
+            const statusBadge = document.getElementById('agentStatus');
+            const powerIcon = document.getElementById('powerIcon');
+            
+            if (isAgentAvailable) {
+                statusBadge.innerHTML = '<i class="bi bi-circle-fill text-success"></i> Online';
+                powerIcon.className = 'bi bi-power';
+                startAutoUpdates();
+            } else {
+                statusBadge.innerHTML = '<i class="bi bi-circle-fill text-secondary"></i> Ausente';
+                powerIcon.className = 'bi bi-power text-warning';
+                if (updateInterval) {
+                    clearInterval(updateInterval);
+                }
+            }
+        }
+
+        async function updateStats() {
+            try {
+                const response = await fetch('/admin/stats');
+                const data = await response.json();
+                
+                document.getElementById('queueCount').textContent = data.queue_size || 0;
+                document.getElementById('activeChats').textContent = data.active_conversations || 0;
+                
+            } catch (error) {
+                console.error('Erro ao atualizar estatísticas:', error);
+            }
+        }
+
+        function formatTime(timestamp) {
+            return new Date(timestamp).toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function formatDate(timestamp) {
+            if (!timestamp) return 'N/A';
+            try {
+                return new Date(timestamp).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } catch {
+                return timestamp;
+            }
+        }
+
+        async function refreshHistory() {
+            try {
+                const response = await fetch('/admin/history');
+                const data = await response.json();
+                
+                displayHistory(data.conversations || []);
+                
+            } catch (error) {
+                console.error('Erro ao carregar histórico:', error);
+                document.getElementById('conversationHistory').innerHTML = `
+                    <div class="text-center text-muted py-3">
+                        <small>Erro ao carregar histórico</small>
+                    </div>
+                `;
+            }
+        }
+
+        function displayHistory(conversations) {
+            const historyList = document.getElementById('conversationHistory');
+            
+            if (conversations.length === 0) {
+                historyList.innerHTML = `
+                    <div class="text-center text-muted py-3">
+                        <small>Nenhuma conversa no histórico</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            historyList.innerHTML = '';
+            
+            conversations.slice(0, 10).forEach(conv => { // Mostrar últimas 10
+                const item = document.createElement('div');
+                item.className = 'queue-item';
+                item.onclick = () => viewHistoryConversation(conv.conversation_id);
+                
+                const satisfactionIcon = getSatisfactionIcon(conv.satisfaction);
+                const clientName = conv.client_data?.name || `Cliente #${conv.conversation_id.substr(-6)}`;
+                
+                item.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="client-badge bg-secondary">${clientName}</span>
+                            <div class="mt-1">
+                                <small class="text-muted">
+                                    <i class="bi bi-calendar"></i> ${formatDate(conv.end_time)}
+                                    ${satisfactionIcon}
+                                </small>
+                            </div>
+                        </div>
+                        <i class="bi bi-eye text-muted"></i>
+                    </div>
+                `;
+                
+                historyList.appendChild(item);
+            });
+        }
+
+        function getSatisfactionIcon(satisfaction) {
+            if (satisfaction >= 4) return '<i class="bi bi-emoji-smile text-success"></i>';
+            if (satisfaction >= 3) return '<i class="bi bi-emoji-neutral text-warning"></i>';
+            if (satisfaction >= 1) return '<i class="bi bi-emoji-frown text-danger"></i>';
+            return '<i class="bi bi-question-circle text-muted"></i>';
+        }
+
+        function viewHistoryConversation(conversationId) {
+            // Carregar conversa do histórico para visualização (read-only)
+            loadHistoryConversation(conversationId);
+        }
+
+        async function loadHistoryConversation(conversationId) {
+            try {
+                const response = await fetch(`/admin/history/${conversationId}`);
+                const data = await response.json();
+                
+                if (data.conversation) {
+                    displayClientInfo(data.conversation);
+                    displayConversation(data.conversation);
+                    
+                    // Não mostrar input (read-only)
+                    document.getElementById('chatInputContainer').style.display = 'none';
+                    document.getElementById('endChatBtn').style.display = 'none';
+                    
+                    // Atualizar header
+                    const clientName = data.conversation.client_data?.name || `Cliente #${conversationId.substr(-6)}`;
+                    document.getElementById('chatTitle').textContent = `${clientName} (Histórico)`;
+                    document.getElementById('chatSubtitle').textContent = `Conversa encerrada: ${formatDate(data.conversation.end_time)}`;
+                }
+                
+            } catch (error) {
+                console.error('Erro ao carregar conversa do histórico:', error);
+            }
+        }
+
+        function startAutoUpdates() {
+            updateInterval = setInterval(() => {
+                if (isAgentAvailable) {
+                    refreshQueue();
+                    updateStats();
+                    refreshHistory(); // Atualizar histórico também
+                    if (currentConversationId) {
+                        loadConversation(currentConversationId, false);
+                    }
+                }
+            }, 10000); // Aumentar para 10 segundos para incluir histórico
+        }
+
+        // Limpar interval ao sair da página
+        window.addEventListener('beforeunload', function() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+        });
+    </script>
+</body>
+</html>

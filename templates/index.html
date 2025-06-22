@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <title>Sistema de Treinamento de IA</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    
+    <style>
+        .card-header { background: linear-gradient(135deg, #007bff, #0056b3); color: white; }
+        .progress-bar-animated { animation: progress-bar-stripes 1s linear infinite; }
+        .status-idle { background-color: #f8f9fa; border-color: #dee2e6; }
+        .status-training { background-color: #cff4fc; border-color: #b6effb; }
+        .status-completed { background-color: #d1e7dd; border-color: #badbcc; }
+        .status-error { background-color: #f8d7da; border-color: #f5c2c7; }
+        .provider-card { transition: all 0.3s; cursor: pointer; }
+        .provider-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .data-stats { background: linear-gradient(135deg, #28a745, #20c997); }
+        .epoch-info { background: linear-gradient(135deg, #17a2b8, #138496); }
+        .memory-warning { background: linear-gradient(135deg, #dc3545, #bd2130); }
+        .config-suggestion { background: linear-gradient(135deg, #fd7e14, #e8590c); }
+        .status-checking { 
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        /* Estilos para quebra de linha nas fontes */
+        .sources-container {
+            word-wrap: break-word;
+            word-break: break-all;
+            overflow-wrap: break-word;
+            max-width: 100%;
+        }
+        
+        .source-badge {
+            display: inline-block;
+            margin: 2px;
+            max-width: 100%;
+            white-space: normal;
+            word-break: break-all;
+            overflow-wrap: break-word;
+            line-height: 1.3;
+            padding: 4px 8px;
+        }
+        
+        .source-badge small {
+            font-size: 0.75em;
+            line-height: 1.2;
+        }
+        
+        /* Estilos para botões de chat */
+        .chat-buttons {
+            gap: 8px;
+        }
+        
+        .btn-chat {
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-chat:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .chat-pulse {
+            animation: chatPulse 2s infinite;
+        }
+        
+        @keyframes chatPulse {
+            0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+        }
+        
+        /* Estilos para botão roxo */
+        .btn-purple {
+            background: linear-gradient(135deg, #6f42c1, #5a32a3);
+            border-color: #6f42c1;
+            color: white;
+        }
+        .btn-purple:hover {
+            background: linear-gradient(135deg, #5a32a3, #4c2a91);
+            border-color: #5a32a3;
+            color: white;
+        }
+        .btn-outline-purple {
+            border-color: #6f42c1;
+            color: #6f42c1;
+        }
+        .btn-outline-purple:hover {
+            background-color: #6f42c1;
+            border-color: #6f42c1;
+            color: white;
+        }
+        .btn-outline-info:hover {
+            background-color: #17a2b8;
+            border-color: #17a2b8;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-robot"></i> Sistema de Treinamento de IA
+            </span>
+            <div class="navbar-nav ms-auto d-flex flex-row chat-buttons">
+                <!-- Botões do Chat -->
+                <a href="http://localhost:5001/chat" target="_blank" 
+                   class="btn btn-success btn-sm me-2 btn-chat chat-pulse" 
+                   title="Testar Chat com IA">
+                    <i class="bi bi-chat-dots"></i> Chat
+                </a>
+                
+                <a href="http://localhost:5001/admin" target="_blank" 
+                   class="btn btn-warning btn-sm me-2 btn-chat" 
+                   title="Painel Administrativo do Chat">
+                    <i class="bi bi-headset"></i> Admin Chat
+                </a>
+                
+                <!-- Botões existentes -->
+                <button class="btn btn-outline-light btn-sm me-2" onclick="detectSystemResources()">
+                    <i class="bi bi-cpu"></i> Detectar Recursos
+                </button>
+                <button class="btn btn-outline-light btn-sm" onclick="loadDataInfo()">
+                    <i class="bi bi-info-circle"></i> Info dos Dados
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                
+                <!-- Alerta informativo sobre o Chat -->
+                <div class="alert alert-info alert-dismissible fade show" id="chatInfoAlert">
+                    <h6><i class="bi bi-chat-dots"></i> Sistema de Chat Integrado</h6>
+                    <p class="mb-2">
+                        <strong>Chat:</strong> Teste o chatbot com IA treinada. Use palavras como "atendente" ou "humano" para transferir para atendimento humano.
+                    </p>
+                    <p class="mb-0">
+                        <strong>Admin Chat:</strong> Painel para atendentes humanos gerenciarem conversas transferidas da IA.
+                    </p>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+
+                <!-- Alerta de Recursos do Sistema -->
+                <div class="alert alert-warning d-none" id="resourceAlert">
+                    <h6><i class="bi bi-exclamation-triangle"></i> Configuração Recomendada</h6>
+                    <p class="mb-0" id="resourceMessage">Detectando recursos do sistema...</p>
+                </div>
+
+                <!-- Card de Informações dos Dados -->
+                <div class="card mb-4" id="dataInfoCard" style="display: none;">
+                    <div class="card-header data-stats">
+                        <h5 class="mb-0"><i class="bi bi-database"></i> Dados Coletados</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <h3 class="text-primary" id="totalFiles">0</h3>
+                                <p class="mb-0">Arquivos</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h3 class="text-success" id="totalTexts">0</h3>
+                                <p class="mb-0">Textos</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h3 class="text-info" id="totalSources">0</h3>
+                                <p class="mb-0">Fontes</p>
+                            </div>
+                        </div>
+                        <div id="sourcesList" class="mt-3 sources-container"></div>
+                    </div>
+                </div>
+
+                <!-- Formulário Principal -->
+                <div class="card shadow">
+                    <div class="card-header">
+                        <h4 class="mb-0"><i class="bi bi-gear"></i> Configuração do Treinamento</h4>
+                    </div>
+                    <div class="card-body">
+                        <form id="trainingForm">
+                            
+                            <!-- Configuração Automática -->
+                            <div class="card mb-4">
+                                <div class="card-header config-suggestion">
+                                    <h6 class="mb-0 text-white"><i class="bi bi-magic"></i> Configuração Inteligente</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <button type="button" class="btn btn-outline-success btn-sm w-100" onclick="applyConfig('low')">
+                                                <i class="bi bi-battery-half"></i><br>Baixa Memória<br><small>(< 4GB RAM)</small>
+                                            </button>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <button type="button" class="btn btn-outline-primary btn-sm w-100" onclick="applyConfig('medium')">
+                                                <i class="bi bi-battery-full"></i><br>Memória Média<br><small>(4-8GB RAM)</small>
+                                            </button>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <button type="button" class="btn btn-outline-warning btn-sm w-100" onclick="applyConfig('high')">
+                                                <i class="bi bi-lightning"></i><br>Alta Memória<br><small>(8GB+ RAM)</small>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <small class="text-muted">Clique na configuração adequada para seu sistema ou configure manualmente abaixo.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modelo Base -->
+                            <div class="mb-4">
+                                <label class="form-label"><i class="bi bi-cpu"></i> Modelo Base</label>
+                                <select name="base_model" id="baseModel" class="form-select" onchange="updateModelInfo()">
+                                    <option value="microsoft/DialoGPT-small">DialoGPT Small (Recomendado - 117MB)</option>
+                                    <option value="microsoft/DialoGPT-medium">DialoGPT Medium (345MB - Requer 6GB+ RAM)</option>
+                                    <option value="gpt2">GPT-2 (548MB - Requer 8GB+ RAM)</option>
+                                </select>
+                                <div class="form-text" id="modelInfo">DialoGPT Small é ideal para sistemas com pouca memória e desenvolvimento.</div>
+                                <div class="alert alert-danger d-none" id="modelWarning">
+                                    <small><i class="bi bi-exclamation-triangle"></i> Este modelo pode causar problemas de memória!</small>
+                                </div>
+                            </div>
+
+                            <!-- Fontes Web -->
+                            <div class="card mb-4">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0"><i class="bi bi-globe"></i> Coleta de Dados da Web</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">URLs para Coleta</label>
+                                        <textarea name="web_sources" class="form-control" rows="4" 
+                                                placeholder="https://blog.exemplo.com&#10;https://site.exemplo.com/artigos&#10;https://forum.exemplo.com"></textarea>
+                                        <div class="form-text">Uma URL por linha. Deixe em branco se não quiser coletar da web.</div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Palavras-chave para Filtrar</label>
+                                        <input type="text" name="keywords" class="form-control" 
+                                               placeholder="inteligência artificial, machine learning, tecnologia, programação">
+                                        <div class="form-text">Opcional: filtra apenas conteúdo relevante das páginas.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Configurações de Email -->
+                            <div class="card mb-4">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0"><i class="bi bi-envelope"></i> Coleta de Dados por Email</h6>
+                                </div>
+                                <div class="card-body">
+                                    
+                                    <!-- Seletor de Provedor -->
+                                    <div class="mb-3">
+                                        <label class="form-label">Provedor de Email</label>
+                                        <select name="email_provider" id="emailProvider" class="form-select" onchange="updateEmailConfig()">
+                                            <option value="">Não coletar emails</option>
+                                            <option value="office365">Microsoft Office 365 / Outlook</option>
+                                            <option value="gmail">Gmail</option>
+                                            <option value="custom">Servidor Customizado</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Cards de Provedores -->
+                                    <div class="row mb-3" id="providerCards" style="display: none;">
+                                        <div class="col-md-6">
+                                            <div class="card provider-card h-100" data-provider="office365">
+                                                <div class="card-body text-center">
+                                                    <i class="bi bi-microsoft display-4 text-primary"></i>
+                                                    <h6>Office 365</h6>
+                                                    <small class="text-muted">outlook.office365.com</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="card provider-card h-100" data-provider="gmail">
+                                                <div class="card-body text-center">
+                                                    <i class="bi bi-google display-4 text-danger"></i>
+                                                    <h6>Gmail</h6>
+                                                    <small class="text-muted">imap.gmail.com</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Campos de Email -->
+                                    <div id="emailFields" style="display: none;">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Email</label>
+                                                    <input type="email" name="email_username" class="form-control" 
+                                                           placeholder="seu.email@dominio.com">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Senha</label>
+                                                    <input type="password" name="email_password" class="form-control" 
+                                                           placeholder="sua_senha_ou_app_password">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Campos Customizados -->
+                                        <div id="customFields" style="display: none;">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Servidor IMAP</label>
+                                                        <input type="text" name="imap_server" class="form-control" 
+                                                               placeholder="imap.seudominio.com">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Servidor SMTP</label>
+                                                        <input type="text" name="smtp_server" class="form-control" 
+                                                               placeholder="smtp.seudominio.com">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Porta IMAP</label>
+                                                        <input type="number" name="imap_port" class="form-control" value="993">
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Porta SMTP</label>
+                                                        <input type="number" name="smtp_port" class="form-control" value="587">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="only_unread" id="onlyUnread" checked>
+                                            <label class="form-check-label" for="onlyUnread">
+                                                Apenas emails não lidos
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Informações do Provedor -->
+                                    <div class="alert" id="providerInfo" style="display: none;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Configurações de Treinamento -->
+                            <div class="card mb-4">
+                                <div class="card-header epoch-info">
+                                    <h6 class="mb-0 text-white"><i class="bi bi-arrow-repeat"></i> Configurações de Treinamento</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Épocas de Treinamento</label>
+                                            <input type="number" name="epochs" id="epochs" class="form-control" value="3" min="1" max="10" onchange="updateEpochInfo()">
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Batch Size</label>
+                                            <select name="batch_size" id="batchSize" class="form-select" onchange="updateMemoryEstimate()">
+                                                <option value="1" selected>1 (Mais Seguro)</option>
+                                                <option value="2">2 (Equilibrado)</option>
+                                                <option value="4">4 (Mais Rápido)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">Tamanho Máximo</label>
+                                            <select name="max_length" id="maxLength" class="form-select" onchange="updateMemoryEstimate()">
+                                                <option value="128">128 tokens (Rápido)</option>
+                                                <option value="256" selected>256 tokens (Equilibrado)</option>
+                                                <option value="512">512 tokens (Lento)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Estimativa de Memória -->
+                                    <div class="mt-3">
+                                        <div class="alert alert-info" id="memoryEstimate">
+                                            <i class="bi bi-info-circle"></i> <strong>Estimativa:</strong> <span id="memoryText">~2GB RAM necessários</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-3">
+                                        <div id="epochInfo" class="alert alert-success">
+                                            <strong>3 épocas:</strong> Equilibrio ideal entre qualidade e tempo. Recomendado para a maioria dos casos.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="bi bi-play-circle"></i> Iniciar Treinamento
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Card de Retreinamento -->
+                <div class="card mb-4" id="retrainCard" style="display: none;">
+                    <div class="card-header" style="background: linear-gradient(135deg, #6f42c1, #5a32a3); color: white;">
+                        <h5 class="mb-0"><i class="bi bi-arrow-clockwise"></i> Retreinamento do Modelo</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Configuração Anterior</label>
+                                <select id="previousConfigSelect" class="form-select" onchange="loadConfigPreview()">
+                                    <option value="">Selecione uma configuração...</option>
+                                </select>
+                                <div class="form-text">Escolha um treinamento anterior como base</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Estratégia de Dados</label>
+                                <select id="mergeStrategy" class="form-select">
+                                    <option value="append">Adicionar aos dados existentes</option>
+                                    <option value="replace">Substituir dados anteriores</option>
+                                    <option value="merge">Mesclar e remover duplicatas</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="useChatData" checked>
+                                <label class="form-check-label" for="useChatData">
+                                    Incluir dados de conversas do chat
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3" id="configPreview" style="display: none;">
+                            <div class="alert alert-info">
+                                <h6><i class="bi bi-info-circle"></i> Prévia da Configuração</h6>
+                                <div id="configPreviewContent"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-purple w-100" onclick="startRetraining()">
+                                <i class="bi bi-arrow-clockwise"></i> Iniciar Retreinamento
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card de Treinamento com Dados do Chat -->
+                <div class="card mb-4" id="chatTrainingCard" style="display: none;">
+                    <div class="card-header" style="background: linear-gradient(135deg, #17a2b8, #138496); color: white;">
+                        <h5 class="mb-0"><i class="bi bi-chat-square-text"></i> Treinamento com Dados do Chat</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="chatDataInfo" class="mb-3">
+                            <div class="text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Carregando...</span>
+                                </div>
+                                <p class="mt-2">Carregando dados do chat...</p>
+                            </div>
+                        </div>
+                        
+                        <div class="row mb-3" id="trainingOptionsRow" style="display: none;">
+                            <div class="col-md-6">
+                                <label class="form-label">Configuração Base</label>
+                                <select id="baseConfigForChat" class="form-select">
+                                    <option value="">Usar configuração padrão</option>
+                                </select>
+                                <div class="form-text">Opcional: usar configuração de treinamento anterior</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Filtros</label>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="includeAiResponses" checked>
+                                    <label class="form-check-label" for="includeAiResponses">
+                                        Incluir respostas da IA
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="includeHumanResponses" checked>
+                                    <label class="form-check-label" for="includeHumanResponses">
+                                        Incluir respostas de atendentes
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="filterBySatisfaction">
+                                    <label class="form-check-label" for="filterBySatisfaction">
+                                        Filtrar por satisfação (≥3)
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3" id="chatTrainingButtonRow" style="display: none;">
+                            <button type="button" class="btn btn-info w-100" onclick="startChatTraining()">
+                                <i class="bi bi-chat-square-text"></i> Treinar com Dados do Chat
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status do Treinamento -->
+                <div class="card mt-4" id="status" style="display: none;">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-activity"></i> Status do Treinamento
+                            <span class="badge bg-light text-dark ms-2" id="statusBadge">Aguardando</span>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="progress mb-3" style="height: 25px;">
+                            <div class="progress-bar progress-bar-striped" id="progressBar" role="progressbar" 
+                                 style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                0%
+                            </div>
+                        </div>
+                        <p id="statusMessage" class="mb-2">Aguardando...</p>
+                        <small class="text-muted" id="lastUpdate">Última atualização: Nunca</small>
+                        
+                        <!-- Indicador de Conexão -->
+                        <div class="mt-2">
+                            <span class="badge bg-secondary" id="connectionStatus">
+                                <i class="bi bi-wifi"></i> Verificando conexão...
+                            </span>
+                        </div>
+                        
+                        <!-- Botão de Atualização Manual -->
+                        <div class="mt-3">
+                            <button class="btn btn-outline-primary btn-sm" onclick="forceStatusUpdate()">
+                                <i class="bi bi-arrow-clockwise"></i> Atualizar Status
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm ms-2" onclick="toggleAutoUpdate()">
+                                <i class="bi bi-pause-circle" id="autoUpdateIcon"></i> 
+                                <span id="autoUpdateText">Pausar Auto-Update</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Variáveis globais para controle
+        let statusUpdateInterval = null;
+        let autoUpdateEnabled = true;
+        let lastStatusCheck = null;
+        
+        function updateEmailConfig() {
+            const provider = document.getElementById('emailProvider').value;
+            const emailFields = document.getElementById('emailFields');
+            const customFields = document.getElementById('customFields');
+            const providerInfo = document.getElementById('providerInfo');
+            const providerCards = document.getElementById('providerCards');
+            
+            if (provider) {
+                emailFields.style.display = 'block';
+                providerCards.style.display = 'none';
+                
+                // Highlight selected provider card
+                document.querySelectorAll('.provider-card').forEach(card => {
+                    card.classList.remove('border-primary');
+                });
+                
+                if (provider === 'custom') {
+                    customFields.style.display = 'block';
+                    providerInfo.innerHTML = '<i class="bi bi-gear"></i> Configure manualmente os servidores IMAP e SMTP do seu provedor.';
+                    providerInfo.className = 'alert alert-warning';
+                } else {
+                    customFields.style.display = 'none';
+                    
+                    if (provider === 'office365') {
+                        providerInfo.innerHTML = '<i class="bi bi-microsoft"></i> <strong>Office 365 configurado!</strong><br>IMAP: outlook.office365.com:993 | SMTP: smtp.office365.com:587<br><em>Use sua senha normal ou senha de aplicativo se tiver 2FA.</em>';
+                        providerInfo.className = 'alert alert-primary';
+                    } else if (provider === 'gmail') {
+                        providerInfo.innerHTML = '<i class="bi bi-google"></i> <strong>Gmail configurado!</strong><br>IMAP: imap.gmail.com:993 | SMTP: smtp.gmail.com:587<br><em><strong>IMPORTANTE:</strong> Use uma senha de aplicativo, não sua senha normal!</em>';
+                        providerInfo.className = 'alert alert-danger';
+                    }
+                }
+                
+                providerInfo.style.display = 'block';
+            } else {
+                emailFields.style.display = 'none';
+                providerInfo.style.display = 'none';
+                providerCards.style.display = 'flex';
+            }
+        }
+        
+        function updateEpochInfo() {
+            const epochs = parseInt(document.querySelector('input[name="epochs"]').value);
+            const infoDiv = document.getElementById('epochInfo');
+            
+            if (epochs <= 2) {
+                infoDiv.innerHTML = '<strong>' + epochs + ' época(s):</strong> Treinamento rápido, mas pode não aprender suficientemente.';
+                infoDiv.className = 'alert alert-warning';
+            } else if (epochs <= 5) {
+                infoDiv.innerHTML = '<strong>' + epochs + ' época(s):</strong> Equilibrio ideal entre qualidade e tempo. Recomendado!';
+                infoDiv.className = 'alert alert-success';
+            } else {
+                infoDiv.innerHTML = '<strong>' + epochs + ' época(s):</strong> Treinamento longo, pode causar overfitting.';
+                infoDiv.className = 'alert alert-danger';
+            }
+        }
+        
+        function loadDataInfo() {
+            fetch('/api/collected_data_info')
+            .then(response => response.json())
+            .then(data => {
+                if (!data.error) {
+                    document.getElementById('totalFiles').textContent = data.total_files;
+                    document.getElementById('totalTexts').textContent = data.total_texts;
+                    document.getElementById('totalSources').textContent = data.sources.length;
+                    
+                    const sourcesList = document.getElementById('sourcesList');
+                    if (data.sources.length > 0) {
+                        // Processar fontes para melhor visualização
+                        const processedSources = data.sources.map(source => {
+                            // Truncar URLs muito longas
+                            if (source.length > 60) {
+                                const truncated = source.substring(0, 57) + '...';
+                                return { original: source, display: truncated };
+                            }
+                            return { original: source, display: source };
+                        });
+                        
+                        sourcesList.innerHTML = '<strong><i class="bi bi-link-45deg"></i> Fontes:</strong><br><div class="mt-2">' + 
+                            processedSources.map(source => 
+                                `<span class="badge bg-secondary source-badge me-1 mb-1" title="${source.original}">
+                                    <small>${source.display}</small>
+                                </span>`
+                            ).join('') + '</div>';
+                    } else {
+                        sourcesList.innerHTML = '<em><i class="bi bi-info-circle"></i> Nenhum dado coletado ainda.</em>';
+                    }
+                    
+                    document.getElementById('dataInfoCard').style.display = 'block';
+                } else {
+                    alert('Erro ao carregar informações: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao carregar dados:', error);
+                document.getElementById('sourcesList').innerHTML = '<em class="text-danger"><i class="bi bi-exclamation-triangle"></i> Erro ao carregar informações das fontes.</em>';
+            });
+        }
+        
+        function applyConfig(level) {
+            const baseModel = document.getElementById('baseModel');
+            const batchSize = document.getElementById('batchSize');
+            const maxLength = document.getElementById('maxLength');
+            const epochs = document.getElementById('epochs');
+            
+            switch(level) {
+                case 'low':
+                    baseModel.value = 'microsoft/DialoGPT-small';
+                    batchSize.value = '1';
+                    maxLength.value = '128';
+                    epochs.value = '2';
+                    showAlert('Configuração para baixa memória aplicada!', 'success');
+                    break;
+                case 'medium':
+                    baseModel.value = 'microsoft/DialoGPT-small';
+                    batchSize.value = '2';
+                    maxLength.value = '256';
+                    epochs.value = '3';
+                    showAlert('Configuração equilibrada aplicada!', 'primary');
+                    break;
+                case 'high':
+                    baseModel.value = 'microsoft/DialoGPT-medium';
+                    batchSize.value = '2';
+                    maxLength.value = '256';
+                    epochs.value = '3';
+                    showAlert('Configuração para alta performance aplicada!', 'warning');
+                    break;
+            }
+            
+            updateModelInfo();
+            updateMemoryEstimate();
+            updateEpochInfo();
+        }
+        
+        function updateModelInfo() {
+            const model = document.getElementById('baseModel').value;
+            const modelInfo = document.getElementById('modelInfo');
+            const modelWarning = document.getElementById('modelWarning');
+            
+            switch(model) {
+                case 'microsoft/DialoGPT-small':
+                    modelInfo.textContent = 'DialoGPT Small: Modelo leve, ideal para desenvolvimento e sistemas com pouca memória.';
+                    modelWarning.classList.add('d-none');
+                    break;
+                case 'microsoft/DialoGPT-medium':
+                    modelInfo.textContent = 'DialoGPT Medium: Melhor qualidade, mas requer mais memória RAM.';
+                    modelWarning.classList.remove('d-none');
+                    modelWarning.innerHTML = '<small><i class="bi bi-exclamation-triangle"></i> Este modelo requer pelo menos 6GB de RAM livre!</small>';
+                    break;
+                case 'gpt2':
+                    modelInfo.textContent = 'GPT-2: Modelo grande, excelente qualidade mas muito pesado.';
+                    modelWarning.classList.remove('d-none');
+                    modelWarning.innerHTML = '<small><i class="bi bi-exclamation-triangle"></i> Este modelo requer pelo menos 8GB de RAM livre!</small>';
+                    break;
+            }
+            
+            updateMemoryEstimate();
+        }
+        
+        function updateMemoryEstimate() {
+            const model = document.getElementById('baseModel').value;
+            const batchSize = parseInt(document.getElementById('batchSize').value);
+            const maxLength = parseInt(document.getElementById('maxLength').value);
+            
+            let baseMemory = 1; // GB
+            
+            switch(model) {
+                case 'microsoft/DialoGPT-small':
+                    baseMemory = 1.5;
+                    break;
+                case 'microsoft/DialoGPT-medium':
+                    baseMemory = 4;
+                    break;
+                case 'gpt2':
+                    baseMemory = 6;
+                    break;
+            }
+            
+            // Estimativa baseada em batch size e max length
+            const multiplier = (batchSize * maxLength) / 256;
+            const totalMemory = Math.ceil(baseMemory * multiplier);
+            
+            const memoryText = document.getElementById('memoryText');
+            const memoryEstimate = document.getElementById('memoryEstimate');
+            
+            memoryText.textContent = `~${totalMemory}GB RAM necessários`;
+            
+            if (totalMemory > 4) {
+                memoryEstimate.className = 'alert alert-danger';
+                memoryText.innerHTML += ' <i class="bi bi-exclamation-triangle"></i> ALTO CONSUMO!';
+            } else if (totalMemory > 2) {
+                memoryEstimate.className = 'alert alert-warning';
+                memoryText.innerHTML += ' <i class="bi bi-info-circle"></i> Moderado';
+            } else {
+                memoryEstimate.className = 'alert alert-success';
+                memoryText.innerHTML += ' <i class="bi bi-check-circle"></i> Seguro';
+            }
+        }
+        
+        function detectSystemResources() {
+            // Simular detecção de recursos (JavaScript não pode acessar info real do sistema)
+            const navigatorMemory = navigator.deviceMemory || 4; // GB aproximado
+            const resourceAlert = document.getElementById('resourceAlert');
+            const resourceMessage = document.getElementById('resourceMessage');
+            
+            if (navigatorMemory < 4) {
+                resourceMessage.innerHTML = `<strong>Sistema com ${navigatorMemory}GB RAM detectado.</strong> Recomendamos usar a configuração "Baixa Memória".`;
+                resourceAlert.className = 'alert alert-danger';
+                applyConfig('low');
+            } else if (navigatorMemory < 8) {
+                resourceMessage.innerHTML = `<strong>Sistema com ~${navigatorMemory}GB RAM detectado.</strong> Recomendamos usar a configuração "Memória Média".`;
+                resourceAlert.className = 'alert alert-warning';
+                applyConfig('medium');
+            } else {
+                resourceMessage.innerHTML = `<strong>Sistema com ${navigatorMemory}GB+ RAM detectado.</strong> Você pode usar qualquer configuração.`;
+                resourceAlert.className = 'alert alert-success';
+            }
+            
+            resourceAlert.classList.remove('d-none');
+        }
+        
+        function showAlert(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.querySelector('.container .row .col-lg-8').insertBefore(alertDiv, document.querySelector('.card'));
+            
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 3000);
+        }
+        
+        document.getElementById('trainingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            
+            // Preparar configuração
+            const config = {
+                base_model: formData.get('base_model'),
+                web_sources: formData.get('web_sources').split('\n').filter(url => url.trim()),
+                keywords: formData.get('keywords').split(',').map(k => k.trim()).filter(k => k),
+                epochs: parseInt(formData.get('epochs')),
+                batch_size: parseInt(formData.get('batch_size')),
+                max_length: parseInt(formData.get('max_length'))
+            };
+            
+            // Adicionar configuração de email se fornecida
+            const emailProvider = formData.get('email_provider');
+            if (emailProvider) {
+                config.email_config = {
+                    provider: emailProvider,
+                    username: formData.get('email_username'),
+                    password: formData.get('email_password'),
+                    only_unread: formData.get('only_unread') === 'on'
+                };
+                
+                // Adicionar campos customizados se necessário
+                if (emailProvider === 'custom') {
+                    config.email_config.imap_server = formData.get('imap_server');
+                    config.email_config.smtp_server = formData.get('smtp_server');
+                    config.email_config.imap_port = parseInt(formData.get('imap_port'));
+                    config.email_config.smtp_port = parseInt(formData.get('smtp_port'));
+                }
+            }
+            
+            // Validar configuração antes de enviar
+            const totalMemory = estimateMemoryUsage(config);
+            if (totalMemory > 6) {
+                if (!confirm(`Esta configuração pode usar ~${totalMemory}GB de RAM e causar problemas de memória. Continuar mesmo assim?`)) {
+                    return;
+                }
+            }
+            
+            // Mostrar status imediatamente
+            const statusCard = document.getElementById('status');
+            statusCard.style.display = 'block';
+            statusCard.scrollIntoView({ behavior: 'smooth' });
+            
+            updateStatusUI('preparing', 0, 'Enviando configuração para o servidor...');
+            
+            fetch('/api/start_training', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showAlert('Treinamento iniciado com sucesso!', 'success');
+                    startStatusMonitoring();
+                } else {
+                    showAlert('Erro: ' + data.message, 'danger');
+                    updateStatusUI('error', 0, 'Erro ao iniciar treinamento: ' + data.message);
+                }
+            })
+            .catch(error => {
+                showAlert('Erro de conexão: ' + error.message, 'danger');
+                updateStatusUI('error', 0, 'Erro de conexão com o servidor');
+            });
+        });
+        
+        function startStatusMonitoring() {
+            console.log('Iniciando monitoramento de status...');
+            
+            // Limpar interval anterior se existir
+            if (statusUpdateInterval) {
+                clearInterval(statusUpdateInterval);
+            }
+            
+            // Primeira verificação imediata
+            checkStatus();
+            
+            // Configurar verificação periódica
+            statusUpdateInterval = setInterval(() => {
+                if (autoUpdateEnabled) {
+                    checkStatus();
+                }
+            }, 2000); // A cada 2 segundos
+        }
+        
+        function checkStatus() {
+            if (!autoUpdateEnabled) return;
+            
+            console.log('Verificando status...');
+            
+            // Mostrar indicador de carregamento
+            const connectionStatus = document.getElementById('connectionStatus');
+            connectionStatus.className = 'badge bg-warning status-checking';
+            connectionStatus.innerHTML = '<i class="bi bi-arrow-repeat"></i> Verificando...';
+            
+            fetch('/api/training_status')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Status recebido:', data);
+                
+                // Atualizar UI
+                updateStatusUI(data.status, data.progress, data.message);
+                
+                // Atualizar indicador de conexão
+                connectionStatus.className = 'badge bg-success';
+                connectionStatus.innerHTML = '<i class="bi bi-check-circle"></i> Conectado';
+                
+                // Atualizar timestamp
+                lastStatusCheck = new Date();
+                document.getElementById('lastUpdate').textContent = 
+                    `Última atualização: ${lastStatusCheck.toLocaleTimeString()}`;
+                
+                // Verificar se deve parar o monitoramento
+                if (data.status === 'completed' || data.status === 'error') {
+                    stopStatusMonitoring();
+                    
+                    if (data.status === 'completed') {
+                        showAlert('Treinamento concluído com sucesso!', 'success');
+                        setTimeout(() => loadDataInfo(), 1000);
+                    } else {
+                        showAlert(`Treinamento falhou: ${data.message}`, 'danger');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Erro ao verificar status:', error);
+                
+                // Atualizar indicador de conexão
+                connectionStatus.className = 'badge bg-danger';
+                connectionStatus.innerHTML = '<i class="bi bi-x-circle"></i> Erro de conexão';
+                
+                // Não parar o monitoramento em caso de erro de rede
+            });
+        }
+        
+        function updateStatusUI(status, progress, message) {
+            const progressBar = document.getElementById('progressBar');
+            const statusCard = document.getElementById('status');
+            const statusBadge = document.getElementById('statusBadge');
+            const statusMessage = document.getElementById('statusMessage');
+            
+            // Atualizar barra de progresso
+            progressBar.style.width = progress + '%';
+            progressBar.textContent = progress + '%';
+            progressBar.setAttribute('aria-valuenow', progress);
+            
+            // Atualizar mensagem
+            statusMessage.textContent = message;
+            
+            // Atualizar badge de status
+            let badgeClass = 'bg-secondary';
+            let badgeText = status;
+            
+            switch(status) {
+                case 'preparing':
+                    badgeClass = 'bg-info';
+                    badgeText = 'Preparando';
+                    progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-info';
+                    break;
+                case 'training':
+                    badgeClass = 'bg-primary';
+                    badgeText = 'Treinando';
+                    progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-primary';
+                    break;
+                case 'saving':
+                    badgeClass = 'bg-warning';
+                    badgeText = 'Salvando';
+                    progressBar.className = 'progress-bar progress-bar-striped bg-warning';
+                    break;
+                case 'completed':
+                    badgeClass = 'bg-success';
+                    badgeText = 'Concluído';
+                    progressBar.className = 'progress-bar bg-success';
+                    break;
+                case 'error':
+                    badgeClass = 'bg-danger';
+                    badgeText = 'Erro';
+                    progressBar.className = 'progress-bar bg-danger';
+                    break;
+                default:
+                    badgeClass = 'bg-secondary';
+                    badgeText = 'Aguardando';
+            }
+            
+            statusBadge.className = `badge ${badgeClass} ms-2`;
+            statusBadge.textContent = badgeText;
+            
+            // Atualizar estilo do card
+            statusCard.className = `card mt-4 status-${status}`;
+        }
+        
+        function stopStatusMonitoring() {
+            console.log('Parando monitoramento de status...');
+            
+            if (statusUpdateInterval) {
+                clearInterval(statusUpdateInterval);
+                statusUpdateInterval = null;
+            }
+            
+            autoUpdateEnabled = false;
+            document.getElementById('autoUpdateText').textContent = 'Iniciar Auto-Update';
+            document.getElementById('autoUpdateIcon').className = 'bi bi-play-circle';
+        }
+        
+        function forceStatusUpdate() {
+            console.log('Forçando atualização de status...');
+            checkStatus();
+        }
+        
+        function toggleAutoUpdate() {
+            autoUpdateEnabled = !autoUpdateEnabled;
+            
+            const autoUpdateText = document.getElementById('autoUpdateText');
+            const autoUpdateIcon = document.getElementById('autoUpdateIcon');
+            
+            if (autoUpdateEnabled) {
+                autoUpdateText.textContent = 'Pausar Auto-Update';
+                autoUpdateIcon.className = 'bi bi-pause-circle';
+                
+                if (!statusUpdateInterval) {
+                    startStatusMonitoring();
+                }
+            } else {
+                autoUpdateText.textContent = 'Iniciar Auto-Update';
+                autoUpdateIcon.className = 'bi bi-play-circle';
+            }
+        }
+        
+        function estimateMemoryUsage(config) {
+            let baseMemory = 1.5;
+            
+            switch(config.base_model) {
+                case 'microsoft/DialoGPT-medium':
+                    baseMemory = 4;
+                    break;
+                case 'gpt2':
+                    baseMemory = 6;
+                    break;
+            }
+            
+            const multiplier = (config.batch_size * config.max_length) / 256;
+            return Math.ceil(baseMemory * multiplier);
+        }
+        
+        // Adicionar verificação de status do chat
+        function checkChatSystemStatus() {
+            // Verificar se o sistema de chat está funcionando
+            fetch('http://localhost:5001/admin/stats', {
+                method: 'GET',
+                mode: 'cors',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Chat system status:', data);
+                // Chat system está funcionando
+                updateChatButtonsStatus(true);
+            })
+            .catch(error => {
+                console.log('Chat system offline:', error.message);
+                // Chat system não está funcionando
+                updateChatButtonsStatus(false);
+            });
+        }
+        
+        function updateChatButtonsStatus(isOnline) {
+            const chatBtn = document.querySelector('a[href*="/chat"]');
+            const adminBtn = document.querySelector('a[href*="/admin"]');
+            
+            if (chatBtn && adminBtn) {
+                if (isOnline) {
+                    chatBtn.classList.remove('btn-secondary');
+                    chatBtn.classList.add('btn-success', 'chat-pulse');
+                    chatBtn.title = 'Testar Chat com IA (Online)';
+                    
+                    adminBtn.classList.remove('btn-secondary');
+                    adminBtn.classList.add('btn-warning');
+                    adminBtn.title = 'Painel Administrativo do Chat (Online)';
+                    
+                    console.log('Chat buttons set to ONLINE');
+                } else {
+                    chatBtn.classList.remove('btn-success', 'chat-pulse');
+                    chatBtn.classList.add('btn-secondary');
+                    chatBtn.title = 'Chat Offline - Execute: python chat_widget.py';
+                    
+                    adminBtn.classList.remove('btn-warning');
+                    adminBtn.classList.add('btn-secondary');
+                    adminBtn.title = 'Admin Chat Offline - Execute: python chat_widget.py';
+                    
+                    console.log('Chat buttons set to OFFLINE');
+                }
+            }
+        }
+        
+        // Inicializar página
+        setTimeout(() => {
+            updateModelInfo();
+            updateMemoryEstimate();
+            loadDataInfo();
+            checkChatSystemStatus(); // Verificar status do chat
+        }, 500);
+        
+        // Verificar status do chat a cada 30 segundos
+        setInterval(checkChatSystemStatus, 30000);
+        
+        // Limpar interval quando a página for fechada
+        window.addEventListener('beforeunload', function() {
+            if (statusUpdateInterval) {
+                clearInterval(statusUpdateInterval);
+            }
+        });
+        
+        // Adicionar funcionalidades de retreinamento
+        async function toggleRetrainOptions() {
+            const retrainCard = document.getElementById('retrainCard');
+            const isVisible = retrainCard.style.display !== 'none';
+            
+            if (!isVisible) {
+                // Carregar configurações anteriores
+                await loadPreviousConfigs();
+                retrainCard.style.display = 'block';
+                retrainCard.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                retrainCard.style.display = 'none';
+            }
+        }
+        
+        async function toggleChatTrainingOptions() {
+            const chatCard = document.getElementById('chatTrainingCard');
+            const isVisible = chatCard.style.display !== 'none';
+            
+            if (!isVisible) {
+                await loadChatTrainingData();
+                await loadPreviousConfigs('baseConfigForChat');
+                chatCard.style.display = 'block';
+                chatCard.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                chatCard.style.display = 'none';
+            }
+        }
+        
+        async function loadChatTrainingData() {
+            try {
+                const response = await fetch('/api/chat_training_data_info');
+                const data = await response.json();
+                
+                const infoDiv = document.getElementById('chatDataInfo');
+                const optionsRow = document.getElementById('trainingOptionsRow');
+                const buttonRow = document.getElementById('chatTrainingButtonRow');
+                
+                if (response.ok && data.total_conversations > 0) {
+                    infoDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <h6><i class="bi bi-chat-square-dots"></i> Dados do Chat Disponíveis</h6>
+                            <div class="row text-center">
+                                <div class="col-3">
+                                    <strong>${data.total_conversations}</strong><br>
+                                    <small>Conversas</small>
+                                </div>
+                                <div class="col-3">
+                                    <strong>${data.total_interactions}</strong><br>
+                                    <small>Interações</small>
+                                </div>
+                                <div class="col-3">
+                                    <strong>${data.ai_interactions}</strong><br>
+                                    <small>IA</small>
+                                </div>
+                                <div class="col-3">
+                                    <strong>${data.human_interactions}</strong><br>
+                                    <small>Humanas</small>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    optionsRow.style.display = 'block';
+                    buttonRow.style.display = 'block';
+                } else {
+                    infoDiv.innerHTML = `
+                        <div class="alert alert-warning">
+                            <h6><i class="bi bi-exclamation-triangle"></i> Nenhum Dado Disponível</h6>
+                            <p class="mb-0">Execute algumas conversas no chat primeiro.</p>
+                            <small>Acesse: <a href="http://localhost:5001/chat" target="_blank">http://localhost:5001/chat</a></small>
+                        </div>
+                    `;
+                    optionsRow.style.display = 'none';
+                    buttonRow.style.display = 'none';
+                }
+            } catch (error) {
+                document.getElementById('chatDataInfo').innerHTML = `
+                    <div class="alert alert-danger">
+                        <h6><i class="bi bi-x-circle"></i> Erro ao Carregar Dados</h6>
+                        <p class="mb-0">Verifique se o chat está rodando: <code>python chat_widget.py</code></p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function loadPreviousConfigs(selectId = 'previousConfigSelect') {
+            try {
+                const response = await fetch('/api/previous_configs');
+                const data = await response.json();
+                
+                const select = document.getElementById(selectId);
+                const currentOptions = select.innerHTML;
+                select.innerHTML = selectId === 'previousConfigSelect' ? 
+                    '<option value="">Selecione uma configuração...</option>' :
+                    '<option value="">Usar configuração padrão</option>';
+                
+                if (data.configs && data.configs.length > 0) {
+                    data.configs.forEach(config => {
+                        const option = document.createElement('option');
+                        option.value = config.filename;
+                        
+                        const typeLabel = config.is_retrain ? '[Retrain]' : '[Original]';
+                        option.textContent = `${typeLabel} ${config.timestamp} - ${config.total_texts} textos`;
+                        select.appendChild(option);
+                    });
+                } else if (selectId === 'previousConfigSelect') {
+                    const option = document.createElement('option');
+                    option.textContent = 'Nenhuma configuração encontrada';
+                    option.disabled = true;
+                    select.appendChild(option);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar configurações:', error);
+                showAlert('Erro ao carregar configurações anteriores', 'danger');
+            }
+        }
+        
+        async function startChatTraining() {
+            const baseConfig = document.getElementById('baseConfigForChat').value;
+            const includeAi = document.getElementById('includeAiResponses').checked;
+            const includeHuman = document.getElementById('includeHumanResponses').checked;
+            const filterSatisfaction = document.getElementById('filterBySatisfaction').checked;
+            
+            if (!includeAi && !includeHuman) {
+                alert('Selecione pelo menos um tipo de resposta para incluir no treinamento');
+                return;
+            }
+            
+            if (!confirm('Deseja iniciar o treinamento com dados do chat? Este processo pode demorar alguns minutos.')) {
+                return;
+            }
+            
+            try {
+                showAlert('Iniciando treinamento com dados do chat...', 'info');
+                
+                const response = await fetch('/api/train_with_chat_data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        base_config_file: baseConfig || null,
+                        training_options: {
+                            include_ai_responses: includeAi,
+                            include_human_responses: includeHuman,
+                            filter_by_satisfaction: filterSatisfaction,
+                            min_satisfaction: 3
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showAlert('Treinamento com dados do chat iniciado!', 'success');
+                    
+                    // Mostrar estatísticas
+                    const statsHtml = `
+                        <strong>Estatísticas do Treinamento:</strong><br>
+                        Textos: ${data.stats.total_texts}<br>
+                        Conversas usadas: ${data.stats.conversations_used}<br>
+                        Fontes: ${data.stats.total_sources}<br>
+                        IA incluída: ${data.stats.training_options.include_ai_responses ? 'Sim' : 'Não'}<br>
+                        Humanos incluídos: ${data.stats.training_options.include_human_responses ? 'Sim' : 'Não'}
+                    `;
+                    
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-info mt-3';
+                    alertDiv.innerHTML = statsHtml;
+                    document.getElementById('chatTrainingCard').appendChild(alertDiv);
+                    
+                    // Iniciar monitoramento
+                    const statusCard = document.getElementById('status');
+                    statusCard.style.display = 'block';
+                    statusCard.scrollIntoView({ behavior: 'smooth' });
+                    startStatusMonitoring();
+                    
+                } else {
+                    showAlert(`Erro no treinamento: ${data.error}`, 'danger');
+                    if (data.details) {
+                        console.error('Detalhes:', data.details);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Erro no treinamento com chat:', error);
+                showAlert('Erro de conexão durante o treinamento', 'danger');
+            }
+        }
+        
+        async function loadConfigPreview() {
+            const selectedConfig = document.getElementById('previousConfigSelect').value;
+            const previewDiv = document.getElementById('configPreview');
+            const contentDiv = document.getElementById('configPreviewContent');
+            
+            if (!selectedConfig) {
+                previewDiv.style.display = 'none';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/previous_configs');
+                const data = await response.json();
+                
+                const config = data.configs.find(c => c.filename === selectedConfig);
+                if (config) {
+                    const typeLabel = config.is_retrain ? 'Retreinamento' : 'Treinamento Original';
+                    contentDiv.innerHTML = `
+                        <strong>Tipo:</strong> ${typeLabel}<br>
+                        <strong>Modelo Base:</strong> ${config.base_model}<br>
+                        <strong>Épocas:</strong> ${config.epochs}<br>
+                        <strong>Textos:</strong> ${config.total_texts}<br>
+                        <strong>Fontes:</strong> ${config.total_sources}<br>
+                        <strong>Inclui Email:</strong> ${config.has_email ? 'Sim' : 'Não'}<br>
+                        <strong>Fontes Web:</strong> ${config.sources_preview.length > 0 ? config.sources_preview.join(', ') : 'Nenhuma'}
+                    `;
+                    previewDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Erro ao carregar prévia:', error);
+            }
+        }
+        
+        async function startRetraining() {
+            const selectedConfig = document.getElementById('previousConfigSelect').value;
+            const mergeStrategy = document.getElementById('mergeStrategy').value;
+            const useChatData = document.getElementById('useChatData').checked;
+            
+            if (!selectedConfig) {
+                alert('Selecione uma configuração anterior');
+                return;
+            }
+            
+            if (!confirm('Deseja iniciar o retreinamento? Este processo pode demorar alguns minutos.')) {
+                return;
+            }
+            
+            try {
+                showAlert('Iniciando retreinamento...', 'info');
+                
+                const response = await fetch('/api/retrain_model', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        config_file: selectedConfig,
+                        merge_strategy: mergeStrategy,
+                        use_chat_data: useChatData
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showAlert('Retreinamento iniciado com sucesso!', 'success');
+                    
+                    // Mostrar estatísticas
+                    const statsHtml = `
+                        <strong>Estatísticas do Retreinamento:</strong><br>
+                        Textos: ${data.stats.total_texts}<br>
+                        Fontes: ${data.stats.total_sources}<br>
+                        Configuração base: ${data.stats.previous_config}<br>
+                        Estratégia: ${data.stats.merge_strategy}<br>
+                        Dados do chat: ${data.stats.used_chat_data ? 'Incluídos' : 'Não incluídos'}
+                    `;
+                    
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'alert alert-info mt-3';
+                    alertDiv.innerHTML = statsHtml;
+                    document.getElementById('retrainCard').appendChild(alertDiv);
+                    
+                    // Iniciar monitoramento
+                    const statusCard = document.getElementById('status');
+                    statusCard.style.display = 'block';
+                    statusCard.scrollIntoView({ behavior: 'smooth' });
+                    startStatusMonitoring();
+                    
+                } else {
+                    showAlert(`Erro no retreinamento: ${data.error}`, 'danger');
+                    if (data.details) {
+                        console.error('Detalhes:', data.details);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Erro no retreinamento:', error);
+                showAlert('Erro de conexão durante o retreinamento', 'danger');
+            }
+        }
+        
+        // Inicializar página
+        setTimeout(() => {
+            updateModelInfo();
+            updateMemoryEstimate();
+            loadDataInfo();
+            checkChatSystemStatus(); // Verificar status do chat
+        }, 500);
+        
+        // Verificar status do chat a cada 30 segundos
+        setInterval(checkChatSystemStatus, 30000);
+        
+        // Limpar interval quando a página for fechada
+        window.addEventListener('beforeunload', function() {
+            if (statusUpdateInterval) {
+                clearInterval(statusUpdateInterval);
+            }
+        });
+    </script>
+</body>
+</html>

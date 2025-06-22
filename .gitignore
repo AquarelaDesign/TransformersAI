@@ -1,0 +1,94 @@
+# Ambientes virtuais Python
+venv/
+env/
+.venv/
+.env/
+
+# Dados coletados e de treinamento
+collected_data/
+chat_training_data/
+data/
+training_data/
+backups/
+models/
+checkpoints/
+
+# Logs e arquivos temporários
+*.log
+logs/
+temp/
+tmp/
+*.tmp
+*.temp
+
+# Arquivos de configuração sensíveis
+.env
+*.key
+*.pem
+config.json
+secrets.json
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg-info/
+dist/
+build/
+
+# Modelos de IA (arquivos grandes)
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pb
+*.model
+*.pkl
+*.pickle
+
+# Arquivos de dados grandes (exceto essenciais do projeto)
+data/*.csv
+data/*.json
+data/*.xml
+data/*.txt
+data/*.tsv
+data/*.parquet
+data/*.xlsx
+data/*.xls
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Arquivos de IDE
+.vscode/
+*.iml
+.idea/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Arquivos específicos do projeto
+*.db
+*.sqlite
+*.sqlite3
+database.db
+
+# Mas permitir arquivos essenciais do projeto
+!requirements.txt
+!README.md
+!*.py
+!*.html
+!*.css
+!*.js
+!LICENSE
+!.gitignore

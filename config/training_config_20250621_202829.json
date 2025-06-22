@@ -1,0 +1,16 @@
+{
+  "base_model": "microsoft/DialoGPT-small",
+  "web_sources": [
+    "https://www.domit.com.br/"
+  ],
+  "keywords": [
+    "optimix"
+  ],
+  "email_config": {
+    "server": "smtp.office365.com",
+    "username": "info@domit.com.br",
+    "password": "2*Melcom#02"
+  },
+  "epochs": 3,
+  "batch_size": 4
+}
