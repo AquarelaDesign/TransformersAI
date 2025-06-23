@@ -17,7 +17,7 @@ class ChatBot:
         self.model_loaded = False
         self.conversations = {}
         self.human_queue = []
-        self.human_agents = {}
+        self.human_agents = {}  # Armazena informações dos agentes {agent_id: {name, status, etc}}
         
     def load_latest_model(self, background=False):
         """Carrega o modelo mais recente treinado"""
@@ -198,7 +198,7 @@ class ChatBot:
             return self._get_fallback_response(message)
 
     def save_conversation_data(self, conversation_id):
-        """Salva conversa para futuros treinamentos (melhorada com dados do cliente)"""
+        """Salva conversa para futuros treinamentos (com informações completas do agente)"""
         if conversation_id not in self.conversations:
             return
         
@@ -207,6 +207,13 @@ class ChatBot:
         # Preparar dados para treinamento - incluindo diálogos com atendentes
         training_data = []
         chat_history = []
+        
+        # Obter informações completas do agente
+        agent_id = conversation.get('assigned_agent')
+        agent_name = conversation.get('agent_name', agent_id)
+        
+        if agent_id and agent_id in self.human_agents:
+            agent_name = self.human_agents[agent_id]['name']
         
         # Processar todas as mensagens da conversa
         for i, msg in enumerate(conversation['messages']):
@@ -229,7 +236,8 @@ class ChatBot:
                         'rating': response_msg.get('rating', 'neutral'),
                         'timestamp': msg['timestamp'],
                         'response_timestamp': response_msg['timestamp'],
-                        'agent_id': response_msg.get('agent_id') if response_msg['type'] == 'agent' else None
+                        'agent_id': response_msg.get('agent_id') if response_msg['type'] == 'agent' else None,
+                        'agent_name': agent_name if response_msg['type'] == 'agent' else None
                     }
                     training_data.append(training_item)
             
@@ -238,12 +246,18 @@ class ChatBot:
                 'type': msg['type'],
                 'content': msg['content'],
                 'timestamp': msg['timestamp'],
-                'agent_id': msg.get('agent_id')
+                'agent_id': msg.get('agent_id'),
+                'agent_name': agent_name if msg.get('agent_id') == agent_id else None
             })
         
-        # Calcular métricas da conversa
+        # Calcular métricas da conversa e tempo
         ai_interactions = len([item for item in training_data if item['interaction_type'] == 'ai_response'])
         human_interactions = len([item for item in training_data if item['interaction_type'] == 'human_response'])
+        
+        # Métricas de tempo detalhadas
+        timing_metrics = conversation.get('timing_metrics', {})
+        conversation_duration = self._calculate_duration(conversation)
+        human_time_seconds = timing_metrics.get('total_human_time_seconds', 0)
         
         # Salvar arquivo de treinamento
         os.makedirs('chat_training_data', exist_ok=True)
@@ -257,14 +271,26 @@ class ChatBot:
             'total_messages': len(conversation['messages']),
             'satisfaction': conversation.get('satisfaction', 'unknown'),
             'transferred_to_human': conversation.get('transferred_to_human', False),
-            'assigned_agent': conversation.get('assigned_agent'),
+            'assigned_agent': agent_id,
+            'agent_name': agent_name,  # Nome completo do agente
             'agent_start_time': conversation.get('agent_start_time'),
             'ended_by': conversation.get('ended_by', 'unknown'),
+            'client_history_available': len(conversation.get('client_history', [])) > 0,
+            'timing_metrics': {
+                'conversation_duration_minutes': conversation_duration,
+                'human_transfer_time': timing_metrics.get('human_transfer_time'),
+                'human_start_time': timing_metrics.get('human_start_time'),
+                'human_end_time': timing_metrics.get('human_end_time'),
+                'total_human_time_seconds': human_time_seconds,
+                'human_time_minutes': round(human_time_seconds / 60, 1),
+                'waiting_time_before_human': self._calculate_waiting_time(timing_metrics),
+                'ai_only_time_minutes': conversation_duration - (human_time_seconds / 60) if conversation_duration > 0 else 0
+            },
             'metrics': {
                 'ai_interactions': ai_interactions,
                 'human_interactions': human_interactions,
                 'total_interactions': len(training_data),
-                'conversation_duration_minutes': self._calculate_duration(conversation)
+                'conversation_duration_minutes': conversation_duration
             },
             'training_data': training_data,
             'full_chat_history': chat_history
@@ -276,8 +302,12 @@ class ChatBot:
         print(f"Conversa salva para treinamento: {filename}")
         print(f"  - IA: {ai_interactions} interações")
         print(f"  - Humano: {human_interactions} interações")
+        print(f"  - Agente: {agent_name} ({agent_id})")
+        print(f"  - Tempo humano: {round(human_time_seconds / 60, 1)} minutos")
+        print(f"  - Cliente: {conversation.get('client_data', {}).get('email', 'Sem email')}")
+        
         return filename
-    
+
     def _calculate_duration(self, conversation):
         """Calcula duração da conversa em minutos"""
         try:
@@ -290,6 +320,21 @@ class ChatBot:
             return round(duration, 2)
         except:
             return 0
+    
+    def _calculate_waiting_time(self, timing_metrics):
+        """Calcula tempo de espera antes do atendimento humano"""
+        try:
+            transfer_time = timing_metrics.get('human_transfer_time')
+            start_time = timing_metrics.get('human_start_time')
+            
+            if transfer_time and start_time:
+                transfer_dt = datetime.fromisoformat(transfer_time)
+                start_dt = datetime.fromisoformat(start_time)
+                waiting_seconds = (start_dt - transfer_dt).total_seconds()
+                return round(waiting_seconds / 60, 1)  # Em minutos
+        except:
+            pass
+        return 0
 
 # Instância global do chatbot
 chatbot = ChatBot()
@@ -328,11 +373,24 @@ def chat_widget():
 
 @chat_app.route('/chat/start', methods=['POST'])
 def start_conversation():
-    """Inicia nova conversa com dados do cliente"""
+    """Inicia nova conversa com dados do cliente (melhorada com histórico)"""
     data = request.json or {}
     client_data = data.get('client_data', {})
     
     conversation_id = str(uuid.uuid4())
+    
+    # Validar e normalizar email
+    client_email = client_data.get('email', '').strip().lower()
+    if client_email and '@' not in client_email:
+        client_email = ''  # Email inválido
+    
+    # Buscar conversas anteriores do cliente para referência
+    previous_conversations = []
+    is_returning_client = False
+    
+    if client_email:
+        previous_conversations = get_client_history_by_email(client_email)
+        is_returning_client = len(previous_conversations) > 0
     
     chatbot.conversations[conversation_id] = {
         'id': conversation_id,
@@ -342,42 +400,69 @@ def start_conversation():
         'transferred_to_human': False,
         'client_data': {
             'name': client_data.get('name', ''),
-            'email': client_data.get('email', ''),
+            'email': client_email,
             'phone': client_data.get('phone', ''),
             'collected_at': datetime.now().isoformat()
-        }
+        },
+        'timing_metrics': {
+            'conversation_start': datetime.now().isoformat(),
+            'human_transfer_time': None,
+            'human_start_time': None,
+            'human_end_time': None,
+            'total_human_time_seconds': 0,
+            'response_times': []
+        },
+        'client_history': previous_conversations if is_returning_client else []
     }
     
-    # Buscar conversas anteriores do cliente para referência
-    previous_conversations = get_client_history(client_data.get('email', ''))
-    if previous_conversations:
-        chatbot.conversations[conversation_id]['client_history'] = previous_conversations
+    # Mensagem de boas-vindas personalizada
+    welcome_message = 'Seja bem-vindo ao nosso atendimento! Como posso ajudá-lo hoje?'
+    
+    if is_returning_client:
+        client_name = client_data.get('name', 'Cliente')
+        history_count = len(previous_conversations)
+        last_contact = format_date(previous_conversations[0].get('date'))
+        
+        welcome_message = f'Olá {client_name}! É um prazer tê-lo de volta. '
+        welcome_message += f'Vejo que você já conversou conosco {history_count} vez(es), '
+        welcome_message += f'sendo o último contato {last_contact}. '
+        welcome_message += 'Como posso ajudá-lo hoje?'
     
     return jsonify({
         'conversation_id': conversation_id,
-        'message': 'Seja bem-vindo ao nosso atendimento! Como posso ajudá-lo hoje?',
-        'status': 'connected'
+        'message': welcome_message,
+        'status': 'connected',
+        'returning_client': is_returning_client,
+        'client_history_count': len(previous_conversations) if is_returning_client else 0
     })
 
-def get_client_history(email):
-    """Busca histórico de conversas do cliente por email"""
-    if not email:
+def get_client_history_by_email(email):
+    """Busca histórico completo de conversas por email do cliente"""
+    if not email or '@' not in email:
         return []
     
+    email = email.strip().lower()
     history = []
+    
     try:
-        # Buscar em conversas ativas
+        # 1. Buscar em conversas ativas/recentes na memória
         for conv_id, conv in chatbot.conversations.items():
-            if (conv.get('client_data', {}).get('email') == email and 
-                conv.get('status') == 'completed'):
+            conv_email = conv.get('client_data', {}).get('email', '').strip().lower()
+            if conv_email == email and conv_id != conv.get('id'):  # Evitar conversa atual
                 history.append({
                     'conversation_id': conv_id,
                     'date': conv.get('start_time'),
+                    'end_date': conv.get('end_time'),
                     'summary': get_conversation_summary(conv),
-                    'satisfaction': conv.get('satisfaction', 'unknown')
+                    'satisfaction': conv.get('satisfaction', 'unknown'),
+                    'transferred_to_human': conv.get('transferred_to_human', False),
+                    'total_messages': len(conv.get('messages', [])),
+                    'human_time_minutes': round(conv.get('timing_metrics', {}).get('total_human_time_seconds', 0) / 60, 1),
+                    'status': conv.get('status', 'unknown'),
+                    'source': 'memory'
                 })
         
-        # Buscar em arquivos de chat salvos
+        # 2. Buscar em arquivos de chat salvos
         chat_data_dir = 'chat_training_data'
         if os.path.exists(chat_data_dir):
             for filename in os.listdir(chat_data_dir):
@@ -387,34 +472,59 @@ def get_client_history(email):
                         with open(file_path, 'r', encoding='utf-8') as f:
                             saved_conv = json.load(f)
                         
-                        # Verificar se é do mesmo cliente (pode não ter client_data em conversas antigas)
-                        saved_email = None
-                        if 'full_chat_history' in saved_conv:
-                            for msg in saved_conv['full_chat_history']:
-                                if msg.get('type') == 'system' and 'email' in msg.get('content', '').lower():
-                                    # Tentar extrair email de mensagens do sistema
-                                    pass
+                        # Verificar email do cliente
+                        saved_email = saved_conv.get('client_data', {}).get('email', '').strip().lower()
                         
-                        # Por enquanto, adicionar conversas recentes como referência geral
-                        if saved_conv.get('start_time'):
-                            start_date = datetime.fromisoformat(saved_conv['start_time'])
-                            if (datetime.now() - start_date).days <= 30:  # Últimos 30 dias
-                                history.append({
-                                    'conversation_id': saved_conv.get('conversation_id', filename),
-                                    'date': saved_conv.get('start_time'),
-                                    'summary': f"Conversa anterior - {saved_conv.get('total_messages', 0)} mensagens",
-                                    'satisfaction': saved_conv.get('satisfaction', 'unknown')
-                                })
+                        if saved_email == email:
+                            # Calcular tempo humano do arquivo
+                            human_time_seconds = saved_conv.get('timing_metrics', {}).get('total_human_time_seconds', 0)
+                            
+                            history.append({
+                                'conversation_id': saved_conv.get('conversation_id', filename.replace('.json', '')),
+                                'date': saved_conv.get('start_time'),
+                                'end_date': saved_conv.get('end_time'),
+                                'summary': f"Conversa salva - {saved_conv.get('total_messages', 0)} mensagens",
+                                'satisfaction': saved_conv.get('satisfaction', 'unknown'),
+                                'transferred_to_human': saved_conv.get('transferred_to_human', False),
+                                'total_messages': saved_conv.get('total_messages', 0),
+                                'human_time_minutes': round(human_time_seconds / 60, 1),
+                                'assigned_agent': saved_conv.get('assigned_agent'),
+                                'source': 'file'
+                            })
+                            
                     except Exception as e:
-                        print(f"Erro ao processar {filename}: {e}")
+                        print(f"Erro ao processar {filename} para histórico: {e}")
         
-        # Ordenar por data (mais recente primeiro) e limitar a 5
-        history.sort(key=lambda x: x['date'], reverse=True)
-        return history[:5]
+        # 3. Ordenar por data (mais recente primeiro)
+        history.sort(key=lambda x: x['date'] or '', reverse=True)
+        
+        print(f"Histórico encontrado para {email}: {len(history)} conversas")
+        return history
         
     except Exception as e:
-        print(f"Erro ao buscar histórico do cliente: {e}")
+        print(f"Erro ao buscar histórico para {email}: {e}")
         return []
+
+def format_date(date_str):
+    """Formata data para exibição amigável"""
+    try:
+        if not date_str:
+            return "Data não disponível"
+        
+        date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        now = datetime.now()
+        diff = now - date_obj
+        
+        if diff.days == 0:
+            return "Hoje"
+        elif diff.days == 1:
+            return "Ontem"
+        elif diff.days < 7:
+            return f"{diff.days} dias atrás"
+        else:
+            return date_obj.strftime("%d/%m/%Y")
+    except:
+        return date_str
 
 def get_conversation_summary(conversation):
     """Gera resumo de uma conversa"""
@@ -430,8 +540,6 @@ def get_conversation_summary(conversation):
         return first_message
     
     return f"Conversa com {len(messages)} mensagens"
-
-# ...existing code...
 
 @chat_app.route('/chat/message', methods=['POST'])
 def send_message():
@@ -524,14 +632,15 @@ def request_human_transfer():
     return handle_human_transfer(conversation_id)
 
 def handle_human_transfer(conversation_id):
-    """Gerencia transferência para atendimento humano (corrigida)"""
+    """Gerencia transferência para atendimento humano (com controle de tempo)"""
     if conversation_id not in chatbot.conversations:
         return jsonify({'error': 'Conversa não encontrada'}), 404
         
     conversation = chatbot.conversations[conversation_id]
     
-    # Marcar como transferida
+    # Marcar como transferida e registrar tempo
     conversation['transferred_to_human'] = True
+    conversation['timing_metrics']['human_transfer_time'] = datetime.now().isoformat()
     
     # Verificar se já não está na fila
     already_in_queue = any(item['conversation_id'] == conversation_id for item in chatbot.human_queue)
@@ -541,12 +650,12 @@ def handle_human_transfer(conversation_id):
         queue_item = {
             'conversation_id': conversation_id,
             'timestamp': datetime.now().isoformat(),
-            'user_info': f'Cliente #{conversation_id[-6:]}',
+            'user_info': conversation.get('client_data', {}).get('name') or f'Cliente #{conversation_id[-6:]}',
+            'client_email': conversation.get('client_data', {}).get('email', ''),
             'waiting_time': '0m'
         }
         chatbot.human_queue.append(queue_item)
         print(f"[TRANSFER] Conversa {conversation_id} adicionada à fila")
-        print(f"[TRANSFER] Fila atual: {len(chatbot.human_queue)} conversas")
     
     # Adicionar mensagem do sistema
     conversation['messages'].append({
@@ -563,38 +672,6 @@ def handle_human_transfer(conversation_id):
         'transferred': True,
         'queue_position': queue_position
     })
-
-@chat_app.route('/chat/rate', methods=['POST'])
-def rate_message():
-    """Avalia resposta do bot"""
-    data = request.json
-    conversation_id = data.get('conversation_id')
-    message_index = data.get('message_index')
-    rating = data.get('rating')  # 'positive', 'negative', 'neutral'
-    
-    if conversation_id in chatbot.conversations:
-        messages = chatbot.conversations[conversation_id]['messages']
-        if 0 <= message_index < len(messages):
-            messages[message_index]['rating'] = rating
-            
-            return jsonify({'status': 'success'})
-    
-    return jsonify({'error': 'Avaliação não pôde ser salva'}), 400
-
-@chat_app.route('/chat/end', methods=['POST'])
-def end_conversation():
-    """Finaliza conversa e salva dados"""
-    data = request.json
-    conversation_id = data.get('conversation_id')
-    satisfaction = data.get('satisfaction', 'unknown')
-    
-    if conversation_id in chatbot.conversations:
-        chatbot.conversations[conversation_id]['satisfaction'] = satisfaction
-        chatbot.save_conversation_data(conversation_id)
-        
-        return jsonify({'status': 'success', 'message': 'Obrigado pelo feedback!'})
-    
-    return jsonify({'error': 'Conversa não encontrada'}), 404
 
 def get_suggestions(user_message):
     """Gera sugestões baseadas na mensagem do usuário (melhorada)"""
@@ -637,10 +714,9 @@ def admin_panel():
 
 @chat_app.route('/admin/queue')
 def get_queue():
-    """Retorna fila de atendimento e conversas ativas (corrigida)"""
+    """Retorna fila de atendimento com informações do cliente"""
     try:
         print(f"[ADMIN] Consultando fila. Total na fila: {len(chatbot.human_queue)}")
-        print(f"[ADMIN] Total de conversas: {len(chatbot.conversations)}")
         
         # Filtrar conversas por status e calcular tempo de espera
         queue = []
@@ -651,82 +727,115 @@ def get_queue():
                 waiting_seconds = (datetime.now() - start_time).total_seconds()
                 waiting_time = f"{int(waiting_seconds // 60)}min" if waiting_seconds >= 60 else f"{int(waiting_seconds)}s"
                 
+                # Buscar informações adicionais da conversa
+                conversation_id = item['conversation_id']
+                conversation = chatbot.conversations.get(conversation_id, {})
+                client_data = conversation.get('client_data', {})
+                
+                # Verificar se é cliente recorrente
+                client_email = client_data.get('email', '')
+                is_returning_client = False
+                previous_conversations_count = 0
+                
+                if client_email:
+                    previous_conversations = get_client_history_by_email(client_email)
+                    previous_conversations_count = len(previous_conversations)
+                    is_returning_client = previous_conversations_count > 0
+                
                 queue_item = {
-                    'conversation_id': item['conversation_id'],
+                    'conversation_id': conversation_id,
                     'timestamp': item['timestamp'],
                     'user_info': item.get('user_info', 'Cliente'),
-                    'waiting_time': waiting_time
+                    'client_email': client_email,
+                    'client_name': client_data.get('name', ''),
+                    'client_phone': client_data.get('phone', ''),
+                    'is_returning_client': is_returning_client,
+                    'previous_conversations_count': previous_conversations_count,
+                    'waiting_time': waiting_time,
+                    'priority': 'high' if is_returning_client else 'normal'
                 }
                 queue.append(queue_item)
+        
+        # Ordenar fila - clientes recorrentes primeiro
+        queue.sort(key=lambda x: (not x['is_returning_client'], x['timestamp']))
         
         # Conversas ativas com agentes
         active_conversations = []
         for conv_id, conv in chatbot.conversations.items():
             if conv.get('assigned_agent') and conv.get('status') == 'active':
+                agent_id = conv['assigned_agent']
+                agent_name = conv.get('agent_name', agent_id)
+                
+                if agent_id in chatbot.human_agents:
+                    agent_name = chatbot.human_agents[agent_id]['name']
+                
                 active_conversations.append({
                     'conversation_id': conv_id,
-                    'agent_id': conv['assigned_agent'],
+                    'agent_id': agent_id,
+                    'agent_name': agent_name,
                     'start_time': conv['start_time'],
-                    'agent_start_time': conv.get('agent_start_time')
+                    'agent_start_time': conv.get('agent_start_time'),
+                    'client_email': conv.get('client_data', {}).get('email', ''),
+                    'client_name': conv.get('client_data', {}).get('name', '')
                 })
         
         print(f"[ADMIN] Retornando {len(queue)} na fila e {len(active_conversations)} ativas")
         
         return jsonify({
             'queue': queue,
-            'active_conversations': active_conversations
+            'active_conversations': active_conversations,
+            'agents_online': len(chatbot.human_agents)
         })
     except Exception as e:
         print(f"[ADMIN] Erro ao buscar fila: {e}")
         return jsonify({'error': str(e)}), 500
 
-@chat_app.route('/admin/accept', methods=['POST'])
-def accept_conversation():
-    """Atendente aceita uma conversa da fila (corrigida)"""
+@chat_app.route('/admin/agent_login', methods=['POST'])
+def agent_login():
+    """Registra/atualiza informações do agente"""
     try:
         data = request.json
-        conversation_id = data.get('conversation_id')
         agent_id = data.get('agent_id')
+        agent_name = data.get('agent_name', agent_id)
         
-        print(f"[ADMIN] Tentativa de aceitar conversa {conversation_id} por agente {agent_id}")
+        if not agent_id:
+            return jsonify({'success': False, 'message': 'ID do agente é obrigatório'})
         
-        if conversation_id not in chatbot.conversations:
-            print(f"[ADMIN] Conversa {conversation_id} não encontrada")
-            return jsonify({'success': False, 'message': 'Conversa não encontrada'})
+        # Registrar ou atualizar agente
+        chatbot.human_agents[agent_id] = {
+            'name': agent_name,
+            'login_time': datetime.now().isoformat(),
+            'status': 'available',
+            'active_conversations': 0
+        }
         
-        # Marcar conversa como aceita
-        conversation = chatbot.conversations[conversation_id]
-        conversation['assigned_agent'] = agent_id
-        conversation['agent_start_time'] = datetime.now().isoformat()
-        conversation['status'] = 'active'  # Garantir que está ativa
+        print(f"[AGENT] Agente {agent_name} ({agent_id}) fez login")
         
-        # Remover da fila
-        original_queue_size = len(chatbot.human_queue)
-        chatbot.human_queue = [item for item in chatbot.human_queue 
-                              if item['conversation_id'] != conversation_id]
-        
-        print(f"[ADMIN] Fila reduzida de {original_queue_size} para {len(chatbot.human_queue)}")
-        
-        # Adicionar mensagem do sistema
-        conversation['messages'].append({
-            'type': 'system',
-            'content': 'Um atendente humano assumiu esta conversa. Como posso ajudá-lo?',
-            'timestamp': datetime.now().isoformat()
+        return jsonify({
+            'success': True,
+            'agent_info': chatbot.human_agents[agent_id]
         })
         
-        print(f"[ADMIN] Conversa {conversation_id} aceita com sucesso por {agent_id}")
-        
-        return jsonify({'success': True})
     except Exception as e:
-        print(f"[ADMIN] Erro ao aceitar conversa: {e}")
         return jsonify({'success': False, 'message': str(e)})
 
 @chat_app.route('/admin/conversation/<conversation_id>')
 def get_conversation(conversation_id):
-    """Retorna detalhes de uma conversa específica"""
+    """Retorna detalhes de uma conversa específica com histórico do cliente"""
     try:
         if conversation_id in chatbot.conversations:
             conversation = chatbot.conversations[conversation_id]
+            
+            # Adicionar informações do agente se disponível
+            agent_id = conversation.get('assigned_agent')
+            if agent_id and agent_id in chatbot.human_agents:
+                conversation['agent_info'] = chatbot.human_agents[agent_id]
+            
+            # Incluir histórico do cliente se disponível
+            client_email = conversation.get('client_data', {}).get('email', '')
+            if client_email:
+                conversation['client_full_history'] = get_client_history_by_email(client_email)
+            
             return jsonify({'conversation': conversation})
         else:
             return jsonify({'error': 'Conversa não encontrada'}), 404
@@ -774,9 +883,108 @@ def admin_send_message():
         print(f"Erro ao enviar mensagem do agente: {e}")  # Debug
         return jsonify({'success': False, 'message': str(e)})
 
+@chat_app.route('/admin/accept', methods=['POST'])
+def accept_conversation():
+    """Atendente aceita uma conversa da fila (com controle de tempo)"""
+    try:
+        data = request.json
+        conversation_id = data.get('conversation_id')
+        agent_id = data.get('agent_id')
+        agent_name = data.get('agent_name', agent_id)
+        
+        print(f"[ADMIN] Tentativa de aceitar conversa {conversation_id} por agente {agent_name} ({agent_id})")
+        
+        if conversation_id not in chatbot.conversations:
+            print(f"[ADMIN] Conversa {conversation_id} não encontrada")
+            return jsonify({'success': False, 'message': 'Conversa não encontrada'})
+        
+        # Atualizar informações do agente
+        if agent_id not in chatbot.human_agents:
+            chatbot.human_agents[agent_id] = {
+                'name': agent_name,
+                'login_time': datetime.now().isoformat(),
+                'status': 'busy',
+                'active_conversations': 0
+            }
+        
+        chatbot.human_agents[agent_id]['status'] = 'busy'
+        chatbot.human_agents[agent_id]['active_conversations'] += 1
+        
+        # Marcar conversa como aceita e iniciar cronômetro humano
+        conversation = chatbot.conversations[conversation_id]
+        human_start_time = datetime.now()
+        
+        conversation['assigned_agent'] = agent_id
+        conversation['agent_name'] = agent_name
+        conversation['agent_start_time'] = human_start_time.isoformat()
+        conversation['status'] = 'active'
+        
+        # Atualizar métricas de tempo
+        conversation['timing_metrics']['human_start_time'] = human_start_time.isoformat()
+        
+        # Remover da fila
+        original_queue_size = len(chatbot.human_queue)
+        chatbot.human_queue = [item for item in chatbot.human_queue 
+                              if item['conversation_id'] != conversation_id]
+        
+        print(f"[ADMIN] Fila reduzida de {original_queue_size} para {len(chatbot.human_queue)}")
+        
+        # Buscar histórico do cliente se disponível
+        client_email = conversation.get('client_data', {}).get('email', '')
+        client_history_message = ""
+        
+        if client_email:
+            previous_conversations = get_client_history_by_email(client_email)
+            if previous_conversations:
+                history_count = len(previous_conversations)
+                last_conversation = previous_conversations[0]
+                
+                client_history_message = f"\n\n📋 HISTÓRICO DO CLIENTE ({client_email}):\n"
+                client_history_message += f"• {history_count} conversa(s) anterior(es)\n"
+                client_history_message += f"• Último contato: {format_date(last_conversation.get('date'))}\n"
+                
+                if last_conversation.get('transferred_to_human'):
+                    client_history_message += f"• Última conversa: Transferida para humano\n"
+                    if last_conversation.get('human_time_minutes', 0) > 0:
+                        client_history_message += f"• Tempo de atendimento anterior: {last_conversation['human_time_minutes']} min\n"
+                
+                if last_conversation.get('satisfaction') != 'unknown':
+                    client_history_message += f"• Satisfação anterior: {last_conversation['satisfaction']}\n"
+                
+                if last_conversation.get('summary'):
+                    client_history_message += f"• Último assunto: {last_conversation['summary'][:100]}...\n"
+        
+        # Adicionar mensagem do sistema com informações do agente e histórico
+        system_message = f"Atendente {agent_name} assumiu esta conversa. Como posso ajudá-lo?"
+        if client_history_message:
+            system_message += client_history_message
+        
+        conversation['messages'].append({
+            'type': 'system',
+            'content': system_message,
+            'timestamp': human_start_time.isoformat(),
+            'agent_info': {
+                'agent_id': agent_id,
+                'agent_name': agent_name,
+                'client_history_shown': bool(client_history_message)
+            }
+        })
+        
+        print(f"[ADMIN] Conversa {conversation_id} aceita com sucesso por {agent_name}")
+        
+        return jsonify({
+            'success': True,
+            'agent_start_time': human_start_time.isoformat(),
+            'agent_name': agent_name,
+            'client_history': previous_conversations if client_email else []
+        })
+    except Exception as e:
+        print(f"[ADMIN] Erro ao aceitar conversa: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
 @chat_app.route('/admin/end_conversation', methods=['POST'])
 def admin_end_conversation():
-    """Atendente encerra uma conversa (melhorada)"""
+    """Atendente encerra uma conversa (com cálculo de tempo total)"""
     try:
         data = request.json
         conversation_id = data.get('conversation_id')
@@ -791,84 +999,307 @@ def admin_end_conversation():
         if conversation.get('assigned_agent') != agent_id:
             return jsonify({'success': False, 'message': 'Acesso negado'})
         
+        # Obter nome do agente
+        agent_name = conversation.get('agent_name', agent_id)
+        if agent_id in chatbot.human_agents:
+            agent_name = chatbot.human_agents[agent_id]['name']
+            chatbot.human_agents[agent_id]['active_conversations'] -= 1
+            if chatbot.human_agents[agent_id]['active_conversations'] <= 0:
+                chatbot.human_agents[agent_id]['status'] = 'available'
+        
+        # Calcular tempo total de atendimento humano
+        human_end_time = datetime.now()
+        human_start_time_str = conversation.get('timing_metrics', {}).get('human_start_time')
+        
+        total_human_time_seconds = 0
+        if human_start_time_str:
+            try:
+                human_start_time = datetime.fromisoformat(human_start_time_str)
+                total_human_time_seconds = (human_end_time - human_start_time).total_seconds()
+            except Exception as e:
+                print(f"Erro ao calcular tempo humano: {e}")
+        
+        # Atualizar métricas finais
+        conversation['timing_metrics']['human_end_time'] = human_end_time.isoformat()
+        conversation['timing_metrics']['total_human_time_seconds'] = total_human_time_seconds
+        
         # Marcar como encerrada
         conversation['status'] = 'completed'
-        conversation['end_time'] = datetime.now().isoformat()
+        conversation['end_time'] = human_end_time.isoformat()
         conversation['ended_by'] = 'agent'
         
-        # Adicionar mensagem de encerramento
+        # Adicionar mensagem de encerramento com métricas
+        human_time_minutes = round(total_human_time_seconds / 60, 1)
         conversation['messages'].append({
             'type': 'system',
-            'content': 'Conversa encerrada pelo atendente.',
-            'timestamp': datetime.now().isoformat()
+            'content': f'Conversa encerrada por {agent_name}. Tempo de atendimento: {human_time_minutes} minutos.',
+            'timestamp': human_end_time.isoformat()
         })
         
-        # Salvar dados da conversa e retornar nome do arquivo
+        # Salvar dados da conversa
         saved_file = chatbot.save_conversation_data(conversation_id)
         
         return jsonify({
             'success': True,
             'saved_file': saved_file,
-            'metrics': conversation.get('metrics', {})
+            'human_time_minutes': human_time_minutes,
+            'agent_name': agent_name,
+            'metrics': {
+                'total_human_time_seconds': total_human_time_seconds,
+                'human_time_minutes': human_time_minutes,
+                'total_messages': len(conversation.get('messages', [])),
+                'client_email': conversation.get('client_data', {}).get('email', ''),
+                'agent_name': agent_name
+            }
         })
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
-@chat_app.route('/chat/training_data')
-def get_chat_training_data():
-    """Retorna informações sobre dados de treinamento do chat"""
+@chat_app.route('/admin/client_history/<email>')
+def get_client_history_admin(email):
+    """Retorna histórico completo de um cliente por email (para admin)"""
     try:
-        training_data_info = {
-            'total_conversations': 0,
-            'total_interactions': 0,
-            'ai_interactions': 0,
-            'human_interactions': 0,
-            'files': []
+        if not email or '@' not in email:
+            return jsonify({'error': 'Email inválido'}), 400
+        
+        history = get_client_history_by_email(email.strip().lower())
+        
+        # Calcular estatísticas do cliente
+        total_conversations = len(history)
+        total_human_time = sum(conv.get('human_time_minutes', 0) for conv in history)
+        transferred_count = sum(1 for conv in history if conv.get('transferred_to_human', False))
+        
+        # Satisfação média
+        satisfactions = [conv.get('satisfaction') for conv in history if conv.get('satisfaction') not in ['unknown', None]]
+        avg_satisfaction = None
+        if satisfactions:
+            numeric_satisfactions = []
+            for sat in satisfactions:
+                if isinstance(sat, (int, float)):
+                    numeric_satisfactions.append(sat)
+                elif isinstance(sat, str) and sat.isdigit():
+                    numeric_satisfactions.append(int(sat))
+            
+            if numeric_satisfactions:
+                avg_satisfaction = round(sum(numeric_satisfactions) / len(numeric_satisfactions), 1)
+        
+        client_stats = {
+            'total_conversations': total_conversations,
+            'total_human_time_minutes': round(total_human_time, 1),
+            'avg_human_time_per_conversation': round(total_human_time / total_conversations, 1) if total_conversations > 0 else 0,
+            'transferred_to_human_count': transferred_count,
+            'transfer_rate': round((transferred_count / total_conversations) * 100, 1) if total_conversations > 0 else 0,
+            'avg_satisfaction': avg_satisfaction,
+            'last_contact': history[0]['date'] if history else None
         }
         
+        return jsonify({
+            'client_email': email,
+            'conversations': history,
+            'stats': client_stats
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@chat_app.route('/admin/time_metrics')
+def get_time_metrics():
+    """Retorna métricas de tempo de atendimento"""
+    try:
+        all_conversations = []
+        
+        # Coletar de conversas na memória
+        for conv in chatbot.conversations.values():
+            if conv.get('status') == 'completed' and conv.get('assigned_agent'):
+                all_conversations.append(conv)
+        
+        # Coletar de arquivos salvos
         chat_data_dir = 'chat_training_data'
         if os.path.exists(chat_data_dir):
             for filename in os.listdir(chat_data_dir):
                 if filename.endswith('.json'):
-                    file_path = os.path.join(chat_data_dir, filename)
                     try:
+                        file_path = os.path.join(chat_data_dir, filename)
                         with open(file_path, 'r', encoding='utf-8') as f:
-                            data = json.load(f)
+                            saved_conv = json.load(f)
                         
-                        training_data_info['total_conversations'] += 1
-                        
-                        if 'metrics' in data:
-                            metrics = data['metrics']
-                            training_data_info['ai_interactions'] += metrics.get('ai_interactions', 0)
-                            training_data_info['human_interactions'] += metrics.get('human_interactions', 0)
-                            training_data_info['total_interactions'] += metrics.get('total_interactions', 0)
-                        
-                        # Informações do arquivo
-                        file_info = {
-                            'filename': filename,
-                            'conversation_id': data.get('conversation_id', 'N/A'),
-                            'start_time': data.get('start_time', 'N/A'),
-                            'satisfaction': data.get('satisfaction', 'unknown'),
-                            'transferred_to_human': data.get('transferred_to_human', False),
-                            'metrics': data.get('metrics', {}),
-                            'file_size': os.path.getsize(file_path)
-                        }
-                        training_data_info['files'].append(file_info)
-                        
+                        if saved_conv.get('assigned_agent'):
+                            all_conversations.append(saved_conv)
+                            
                     except Exception as e:
-                        print(f"Erro ao processar {filename}: {e}")
+                        print(f"Erro ao processar {filename} para métricas: {e}")
         
-        # Ordenar arquivos por data
-        training_data_info['files'].sort(key=lambda x: x['start_time'], reverse=True)
+        # Calcular métricas
+        if not all_conversations:
+            return jsonify({
+                'total_conversations_with_human': 0,
+                'avg_human_time_minutes': 0,
+                'min_human_time_minutes': 0,
+                'max_human_time_minutes': 0,
+                'total_human_hours': 0,
+                'conversations_by_agent': {}
+            })
         
-        return jsonify(training_data_info)
+        human_times = []
+        agent_stats = {}
+        
+        for conv in all_conversations:
+            human_time_seconds = conv.get('timing_metrics', {}).get('total_human_time_seconds', 0)
+            if human_time_seconds > 0:
+                human_time_minutes = human_time_seconds / 60
+                human_times.append(human_time_minutes)
+                
+                agent_id = conv.get('assigned_agent')
+                if agent_id:
+                    if agent_id not in agent_stats:
+                        agent_stats[agent_id] = {
+                            'total_conversations': 0,
+                            'total_time_minutes': 0,
+                            'avg_time_minutes': 0
+                        }
+                    
+                    agent_stats[agent_id]['total_conversations'] += 1
+                    agent_stats[agent_id]['total_time_minutes'] += human_time_minutes
+        
+        # Calcular médias por agente
+        for agent_id in agent_stats:
+            stats = agent_stats[agent_id]
+            stats['avg_time_minutes'] = round(stats['total_time_minutes'] / stats['total_conversations'], 1)
+            stats['total_time_minutes'] = round(stats['total_time_minutes'], 1)
+        
+        metrics = {
+            'total_conversations_with_human': len(human_times),
+            'avg_human_time_minutes': round(sum(human_times) / len(human_times), 1) if human_times else 0,
+            'min_human_time_minutes': round(min(human_times), 1) if human_times else 0,
+            'max_human_time_minutes': round(max(human_times), 1) if human_times else 0,
+            'total_human_hours': round(sum(human_times) / 60, 1),
+            'conversations_by_agent': agent_stats
+        }
+        
+        return jsonify(metrics)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@chat_app.route('/admin/agents')
+def get_agents_status():
+    """Retorna status de todos os agentes"""
+    try:
+        agents_list = []
+        
+        for agent_id, agent_info in chatbot.human_agents.items():
+            agents_list.append({
+                'agent_id': agent_id,
+                'name': agent_info['name'],
+                'status': agent_info['status'],
+                'login_time': agent_info['login_time'],
+                'active_conversations': agent_info['active_conversations']
+            })
+        
+        return jsonify({
+            'agents': agents_list,
+            'total_agents': len(agents_list),
+            'available_agents': len([a for a in agents_list if a['status'] == 'available']),
+            'busy_agents': len([a for a in agents_list if a['status'] == 'busy'])
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@chat_app.route('/admin/clients')
+def get_all_clients():
+    """Retorna lista de todos os clientes com estatísticas"""
+    try:
+        clients = {}
+        
+        # Coletar emails de conversas na memória
+        for conv in chatbot.conversations.values():
+            email = conv.get('client_data', {}).get('email', '').strip().lower()
+            if email and '@' in email:
+                if email not in clients:
+                    clients[email] = {
+                        'email': email,
+                        'name': conv.get('client_data', {}).get('name', ''),
+                        'phone': conv.get('client_data', {}).get('phone', ''),
+                        'conversations': [],
+                        'last_contact': None
+                    }
+                
+                clients[email]['conversations'].append({
+                    'conversation_id': conv['id'],
+                    'date': conv.get('start_time'),
+                    'status': conv.get('status', 'unknown'),
+                    'human_time_minutes': round(conv.get('timing_metrics', {}).get('total_human_time_seconds', 0) / 60, 1)
+                })
+        
+        # Coletar emails de arquivos salvos
+        chat_data_dir = 'chat_training_data'
+        if os.path.exists(chat_data_dir):
+            for filename in os.listdir(chat_data_dir):
+                if filename.endswith('.json'):
+                    try:
+                        file_path = os.path.join(chat_data_dir, filename)
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            saved_conv = json.load(f)
+                        
+                        email = saved_conv.get('client_data', {}).get('email', '').strip().lower()
+                        if email and '@' in email:
+                            if email not in clients:
+                                clients[email] = {
+                                    'email': email,
+                                    'name': saved_conv.get('client_data', {}).get('name', ''),
+                                    'phone': saved_conv.get('client_data', {}).get('phone', ''),
+                                    'conversations': [],
+                                    'last_contact': None
+                                }
+                            
+                            human_time_seconds = saved_conv.get('timing_metrics', {}).get('total_human_time_seconds', 0)
+                            clients[email]['conversations'].append({
+                                'conversation_id': saved_conv.get('conversation_id'),
+                                'date': saved_conv.get('start_time'),
+                                'status': 'completed',
+                                'human_time_minutes': round(human_time_seconds / 60, 1)
+                            })
+                            
+                    except Exception as e:
+                        print(f"Erro ao processar {filename} para lista de clientes: {e}")
+        
+        # Calcular estatísticas e último contato para cada cliente
+        client_list = []
+        for email, client_data in clients.items():
+            conversations = client_data['conversations']
+            conversations.sort(key=lambda x: x['date'] or '', reverse=True)
+            
+            total_conversations = len(conversations)
+            total_human_time = sum(conv['human_time_minutes'] for conv in conversations)
+            last_contact = conversations[0]['date'] if conversations else None
+            
+            client_summary = {
+                'email': email,
+                'name': client_data['name'],
+                'phone': client_data['phone'],
+                'total_conversations': total_conversations,
+                'total_human_time_minutes': round(total_human_time, 1),
+                'avg_human_time_minutes': round(total_human_time / total_conversations, 1) if total_conversations > 0 else 0,
+                'last_contact': last_contact,
+                'recent_conversations': conversations[:3]
+            }
+            
+            client_list.append(client_summary)
+        
+        client_list.sort(key=lambda x: x['last_contact'] or '', reverse=True)
+        
+        return jsonify({
+            'clients': client_list,
+            'total_clients': len(client_list)
+        })
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @chat_app.route('/admin/stats')
 def admin_stats():
-    """Estatísticas para o painel administrativo (corrigida)"""
+    """Estatísticas para o painel administrativo"""
     try:
         queue_size = len([item for item in chatbot.human_queue if not item.get('assigned_agent')])
         active_conversations = len([conv for conv in chatbot.conversations.values() 
@@ -886,7 +1317,6 @@ def admin_stats():
             'model_status': 'loaded' if chatbot.model_loaded else 'fallback_mode'
         })
         
-        # Adicionar headers CORS
         response.headers.add('Access-Control-Allow-Origin', '*')
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
         response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
@@ -896,7 +1326,6 @@ def admin_stats():
         print(f"[STATS] Erro: {e}")
         return jsonify({'error': str(e)}), 500
 
-# Adicionar rota OPTIONS para preflight requests
 @chat_app.route('/admin/stats', methods=['OPTIONS'])
 def admin_stats_options():
     """Handle preflight OPTIONS request"""
@@ -915,7 +1344,6 @@ def poll_messages(conversation_id):
         
         conversation = chatbot.conversations[conversation_id]
         
-        # Verificar se há mensagens novas do agente
         new_messages = []
         last_check = request.args.get('last_check', '0')
         
@@ -1014,7 +1442,6 @@ def get_history_conversation(conversation_id):
                             saved_conv = json.load(f)
                         
                         if saved_conv.get('conversation_id') == conversation_id:
-                            # Reconstruir formato de conversa
                             conversation = {
                                 'id': conversation_id,
                                 'start_time': saved_conv.get('start_time'),
@@ -1032,208 +1459,6 @@ def get_history_conversation(conversation_id):
                         print(f"Erro ao ler arquivo {filename}: {e}")
         
         return jsonify({'error': 'Conversa não encontrada'}), 404
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@chat_app.route('/admin/retrain', methods=['POST'])
-def start_retraining():
-    """Inicia processo de retreinamento com dados coletados"""
-    try:
-        data = request.json or {}
-        use_all_data = data.get('use_all_data', False)
-        
-        # Verificar se há dados suficientes
-        chat_data_dir = 'chat_training_data'
-        if not os.path.exists(chat_data_dir):
-            return jsonify({'error': 'Nenhum dado de treinamento encontrado'}), 400
-        
-        training_files = [f for f in os.listdir(chat_data_dir) if f.endswith('.json')]
-        if len(training_files) < 5:
-            return jsonify({'error': 'Dados insuficientes para retreinamento (mínimo 5 conversas)'}), 400
-        
-        # Preparar dados para retreinamento
-        training_data = []
-        total_interactions = 0
-        
-        for filename in training_files:
-            try:
-                file_path = os.path.join(chat_data_dir, filename)
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    conv_data = json.load(f)
-                
-                # Filtrar apenas interações bem avaliadas se não usar todos os dados
-                for interaction in conv_data.get('training_data', []):
-                    if use_all_data or interaction.get('rating', 'neutral') in ['positive', 'neutral']:
-                        training_data.append({
-                            'input': interaction['input'],
-                            'output': interaction['output'],
-                            'interaction_type': interaction['interaction_type'],
-                            'rating': interaction.get('rating', 'neutral')
-                        })
-                        total_interactions += 1
-                        
-            except Exception as e:
-                print(f"Erro ao processar {filename}: {e}")
-        
-        if total_interactions < 10:
-            return jsonify({'error': 'Interações insuficientes para retreinamento (mínimo 10)'}), 400
-        
-        # Salvar dados preparados para retreinamento
-        retrain_file = f"retrain_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        retrain_path = os.path.join(chat_data_dir, retrain_file)
-        
-        with open(retrain_path, 'w', encoding='utf-8') as f:
-            json.dump({
-                'created_at': datetime.now().isoformat(),
-                'total_interactions': total_interactions,
-                'total_conversations': len(training_files),
-                'use_all_data': use_all_data,
-                'training_data': training_data
-            }, f, ensure_ascii=False, indent=2)
-        
-        return jsonify({
-            'success': True,
-            'message': f'Dados preparados para retreinamento: {total_interactions} interações de {len(training_files)} conversas',
-            'retrain_file': retrain_file,
-            'total_interactions': total_interactions,
-            'total_conversations': len(training_files)
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@chat_app.route('/chat/training_data')
-def get_training_data():
-    """Retorna dados de treinamento coletados para o dashboard"""
-    try:
-        chat_data_dir = 'chat_training_data'
-        
-        if not os.path.exists(chat_data_dir):
-            return jsonify({
-                'total_conversations': 0,
-                'total_interactions': 0,
-                'ai_interactions': 0,
-                'human_interactions': 0,
-                'files': []
-            })
-        
-        files_data = []
-        total_conversations = 0
-        total_interactions = 0
-        ai_interactions = 0
-        human_interactions = 0
-        
-        for filename in os.listdir(chat_data_dir):
-            if filename.endswith('.json'):
-                try:
-                    file_path = os.path.join(chat_data_dir, filename)
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        conv_data = json.load(f)
-                    
-                    total_conversations += 1
-                    
-                    # Contar interações
-                    file_ai_count = 0
-                    file_human_count = 0
-                    file_total_count = 0
-                    
-                    for interaction in conv_data.get('training_data', []):
-                        file_total_count += 1
-                        if interaction.get('interaction_type') == 'ai_response':
-                            file_ai_count += 1
-                        elif interaction.get('interaction_type') == 'human_response':
-                            file_human_count += 1
-                    
-                    total_interactions += file_total_count
-                    ai_interactions += file_ai_count
-                    human_interactions += file_human_count
-                    
-                    # Dados do arquivo para exibição
-                    files_data.append({
-                        'conversation_id': conv_data.get('conversation_id'),
-                        'start_time': conv_data.get('start_time'),
-                        'end_time': conv_data.get('end_time'),
-                        'satisfaction': conv_data.get('satisfaction', 0),
-                        'transferred_to_human': conv_data.get('transferred_to_human', False),
-                        'metrics': {
-                            'total_interactions': file_total_count,
-                            'ai_interactions': file_ai_count,
-                            'human_interactions': file_human_count
-                        }
-                    })
-                    
-                except Exception as e:
-                    print(f"Erro ao processar arquivo {filename}: {e}")
-                    continue
-        
-        # Ordenar por data de início (mais recente primeiro)
-        files_data.sort(key=lambda x: x.get('start_time', ''), reverse=True)
-        
-        return jsonify({
-            'total_conversations': total_conversations,
-            'total_interactions': total_interactions,
-            'ai_interactions': ai_interactions,
-            'human_interactions': human_interactions,
-            'files': files_data
-        })
-        
-    except Exception as e:
-        print(f"Erro ao carregar dados de treinamento: {e}")
-        return jsonify({
-            'error': str(e),
-            'total_conversations': 0,
-            'total_interactions': 0,
-            'ai_interactions': 0,
-            'human_interactions': 0,
-            'files': []
-        }), 500
-
-@chat_app.route('/api/collect_web_data', methods=['POST'])
-def collect_web_data():
-    """Rota para coletar dados de URLs web"""
-    try:
-        data = request.json or {}
-        urls = data.get('urls', [])
-        clean_data = data.get('clean_data', True)
-        save_backup = data.get('save_backup', True)
-        
-        if not urls:
-            return jsonify({'error': 'Nenhuma URL fornecida'}), 400
-        
-        # Validar URLs
-        valid_urls = []
-        for url in urls:
-            url = url.strip()
-            if url and (url.startswith('http://') or url.startswith('https://')):
-                valid_urls.append(url)
-        
-        if not valid_urls:
-            return jsonify({'error': 'Nenhuma URL válida fornecida'}), 400
-        
-        # Executar coleta
-        results = data_collector.collect_web_data(valid_urls, clean_data, save_backup)
-        
-        return jsonify({
-            'success': True,
-            'results': results,
-            'message': f'Coleta concluída: {results["successful_collections"]} sucessos, {results["failed_collections"]} falhas'
-        })
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@chat_app.route('/api/training_data_status')
-def get_training_data_status():
-    """Obter status dos dados de treinamento coletados"""
-    try:
-        stats = data_collector.get_statistics()
-        
-        return jsonify({
-            'collector_stats': stats,
-            'training_data_available': len(data_collector.get_collected_data()) > 0,
-            'data_collector_working': True  # Agora funciona
-        })
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1264,13 +1489,12 @@ if __name__ == '__main__':
         print("CORS configurado para localhost:5000 e localhost:5001")
         print(f"Status do modelo: {'Carregado' if chatbot.model_loaded else 'Modo fallback'}")
         
-        # Configurar Flask para não usar threads desnecessárias
         chat_app.run(
-            debug=False,  # Desabilitar debug para evitar problemas com threads
+            debug=False,
             port=5001, 
             host='0.0.0.0',
             threaded=True,
-            use_reloader=False  # Evitar reloader que pode causar problemas
+            use_reloader=False
         )
     except KeyboardInterrupt:
         print("\nEncerrando servidor...")

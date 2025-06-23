@@ -134,16 +134,88 @@ class ModelTrainer:
             print(f"❌ {error_message}")
     
     def load_training_data(self):
-        """Carrega dados coletados para treinamento"""
+        """Carrega dados coletados para treinamento (corrigida)"""
         data = []
-        data_dir = 'data'
         
-        if os.path.exists(data_dir):
-            for filename in os.listdir(data_dir):
+        # Primeiro, tentar carregar do diretório training_data (novo formato)
+        training_data_dir = 'training_data'
+        if os.path.exists(training_data_dir):
+            for filename in os.listdir(training_data_dir):
+                if filename.startswith('collected_data_') and filename.endswith('.json'):
+                    file_path = os.path.join(training_data_dir, filename)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            file_data = json.load(f)
+                        
+                        # Verificar se tem o campo 'texts' (novo formato)
+                        if 'texts' in file_data:
+                            texts = file_data['texts']
+                            sources = file_data.get('sources', [])
+                            
+                            # Converter para formato esperado pelo trainer
+                            for i, text in enumerate(texts):
+                                if isinstance(text, str) and len(text.strip()) > 20:
+                                    data.append({
+                                        'content': text.strip(),
+                                        'source': sources[0] if sources else 'unknown',
+                                        'id': f"{filename}_{i}",
+                                        'timestamp': file_data.get('timestamp', datetime.now().isoformat())
+                                    })
+                            
+                            print(f"📂 Carregados {len(texts)} textos de {filename}")
+                        
+                        # Verificar formato detalhado
+                        elif 'detailed_data' in file_data:
+                            for item in file_data['detailed_data']:
+                                if 'content' in item and len(item['content'].strip()) > 20:
+                                    data.append({
+                                        'content': item['content'].strip(),
+                                        'source': item.get('source', 'unknown'),
+                                        'id': item.get('id', f"{filename}_{len(data)}"),
+                                        'timestamp': item.get('timestamp', datetime.now().isoformat())
+                                    })
+                        
+                    except Exception as e:
+                        print(f"❌ Erro ao carregar {filename}: {e}")
+                        continue
+        
+        # Fallback: tentar diretório 'data' (formato antigo)
+        if not data and os.path.exists('data'):
+            for filename in os.listdir('data'):
                 if filename.endswith('.json'):
-                    with open(os.path.join(data_dir, filename), 'r', encoding='utf-8') as f:
-                        file_data = json.load(f)
-                        data.extend(file_data)
+                    file_path = os.path.join('data', filename)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            file_data = json.load(f)
+                        
+                        # Formato antigo - lista de objetos
+                        if isinstance(file_data, list):
+                            for item in file_data:
+                                if isinstance(item, dict) and 'content' in item:
+                                    content = item['content']
+                                    if isinstance(content, str) and len(content.strip()) > 20:
+                                        data.append({
+                                            'content': content.strip(),
+                                            'source': item.get('source', 'unknown'),
+                                            'id': item.get('id', f"{filename}_{len(data)}"),
+                                            'timestamp': item.get('timestamp', datetime.now().isoformat())
+                                        })
+                        
+                        print(f"📂 Carregados dados do formato antigo: {filename}")
+                        
+                    except Exception as e:
+                        print(f"❌ Erro ao carregar {filename}: {e}")
+                        continue
+        
+        print(f"📊 Total de dados carregados: {len(data)}")
+        
+        # Debug: mostrar amostra dos dados
+        if data:
+            print(f"🔍 Exemplo de dados carregados:")
+            for i, item in enumerate(data[:3]):  # Mostrar 3 primeiros
+                print(f"  {i+1}. Fonte: {item['source']}")
+                print(f"     Conteúdo: {item['content'][:100]}...")
+                print(f"     Tamanho: {len(item['content'])} caracteres")
         
         return data
     

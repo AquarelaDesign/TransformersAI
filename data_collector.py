@@ -12,12 +12,14 @@ import json
 from datetime import datetime
 import re
 import time
+from pathlib import Path
 
 class DataCollector:
-    def __init__(self, config_manager):
+    def __init__(self, config_manager = None):
         self.config_manager = config_manager
         self.collected_data = []
         self.base_dir = 'collected_data'
+        self.data_dir = Path(self.base_dir)
         self.ensure_directory()
     
     def ensure_directory(self):
@@ -43,33 +45,84 @@ class DataCollector:
         except Exception as e:
             print(f"Erro na coleta de dados: {e}")
     
+    def is_relevant_text(self, text, keywords):
+        """Verifica se o texto é relevante baseado nas palavras-chave"""
+        if not text or len(text.strip()) < 20:  # Mínimo de 20 caracteres
+            return False
+            
+        # Se não há palavras-chave, aceita textos com pelo menos 20 caracteres
+        if not keywords:
+            return len(text.strip()) >= 20
+        
+        text_lower = text.lower()
+        # Verifica se alguma palavra-chave está presente
+        keyword_found = any(keyword.lower() in text_lower for keyword in keywords)
+        
+        # Debug: mostrar textos que passaram pelo filtro
+        if keyword_found and len(text.strip()) >= 20:
+            print(f"✅ Texto relevante encontrado (tamanho: {len(text)}): {text[:100]}...")
+            
+        return keyword_found and len(text.strip()) >= 20
+
     def scrape_website(self, url, keywords):
         """Faz scraping de um website"""
         try:
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
             response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Extrair texto relevante
-            texts = []
-            for tag in ['p', 'h1', 'h2', 'h3', 'article']:
-                elements = soup.find_all(tag)
-                for element in elements:
-                    text = element.get_text().strip()
-                    if self.is_relevant_text(text, keywords):
-                        texts.append(text)
+            # Remove elementos desnecessários
+            for element in soup(['script', 'style', 'nav', 'header', 'footer', 'aside']):
+                element.decompose()
             
-            self.collected_data.extend([{
-                'source': url,
-                'type': 'web',
-                'content': text,
-                'timestamp': datetime.now().isoformat()
-            } for text in texts])
+            # Extrair texto relevante com prioridades
+            texts = []
+            
+            # Prioridade 1: Conteúdo principal
+            main_tags = ['main', 'article', 'section[class*="content"]', 'div[class*="content"]']
+            for selector in main_tags:
+                elements = soup.select(selector)
+                for element in elements:
+                    paragraphs = element.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'li'])
+                    for p in paragraphs:
+                        text = p.get_text().strip()
+                        if self.is_relevant_text(text, keywords):
+                            texts.append(text)
+            
+            # Prioridade 2: Se não encontrou conteúdo principal, busca em todos os parágrafos
+            if not texts:
+                print(f"⚠️ Nenhum conteúdo principal encontrado em {url}, buscando em todos os elementos...")
+                for tag in ['p', 'h1', 'h2', 'h3', 'h4', 'li', 'td']:
+                    elements = soup.find_all(tag)
+                    for element in elements:
+                        text = element.get_text().strip()
+                        if self.is_relevant_text(text, keywords):
+                            texts.append(text)
+            
+            # Adicionar dados coletados
+            valid_texts = []
+            for text in texts:
+                if len(text.strip()) >= 20:  # Validação adicional
+                    valid_texts.append({
+                        'source': url,
+                        'type': 'web',
+                        'content': text,
+                        'timestamp': datetime.now().isoformat()
+                    })
+            
+            self.collected_data.extend(valid_texts)
+            print(f"📝 Coletados {len(valid_texts)} textos válidos de {url}")
+            
+            # Debug: mostrar alguns exemplos
+            if valid_texts:
+                print(f"🔍 Exemplo de texto coletado: {valid_texts[0]['content'][:200]}...")
             
         except Exception as e:
-            print(f"Erro no scraping de {url}: {e}")
+            print(f"❌ Erro no scraping de {url}: {e}")
     
     def collect_emails(self, email_config):
         """Coleta emails com suporte a diferentes provedores"""
@@ -235,30 +288,129 @@ class DataCollector:
         
         return content.strip() if content else ""
     
-    def is_relevant_text(self, text, keywords):
-        """Verifica se o texto é relevante baseado nas palavras-chave"""
-        if not keywords:
-            return len(text) > 50  # Mínimo de caracteres
-        
-        text_lower = text.lower()
-        return any(keyword.lower() in text_lower for keyword in keywords)
-    
-    def save_collected_data(self):
-        """Salvar dados coletados em arquivo"""
-        filename = f"collected_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        filepath = os.path.join(self.base_dir, filename)
-        
+    def collect_email_data(self, email_config):
+        """Método para compatibilidade com app.py - coleta dados de email"""
         try:
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(self.collected_data, f, ensure_ascii=False, indent=2)
+            self.collect_emails(email_config)
             
-            print(f"📁 Dados salvos em: {filepath}")
-            return filepath
+            # Extrair apenas o conteúdo dos emails coletados
+            email_texts = []
+            for item in self.collected_data:
+                if item.get('type') == 'email':
+                    email_texts.append(item['content'])
+            
+            print(f"📧 Extraídos {len(email_texts)} textos de email")
+            return email_texts
+            
+        except Exception as e:
+            print(f"❌ Erro na coleta de emails: {e}")
+            return []
+
+    def collect_web_data(self, url, keywords=None):
+        """Coleta dados de uma URL web (corrigida para retornar lista de textos)"""
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            
+            # Remove scripts e estilos
+            for script in soup(["script", "style", "nav", "header", "footer", "aside"]):
+                script.decompose()
+            
+            # Extrai texto das tags principais com melhor seleção
+            content_tags = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'article', 'section', 'div', 'li'])
+            text_content = []
+            
+            for tag in content_tags:
+                text = tag.get_text(strip=True)
+                # Filtros mais flexíveis
+                if text and len(text) >= 20:  # Mínimo de 20 caracteres
+                    # Se não há keywords, aceita qualquer texto válido
+                    if not keywords or any(keyword.lower() in text.lower() for keyword in keywords):
+                        text_content.append(text)
+            
+            result_string = '\n'.join(text_content)
+            print(f"📊 Coletado {len(text_content)} textos, total de caracteres: {len(result_string)}")
+            
+            # Debug: mostrar amostra do conteúdo
+            if result_string:
+                print(f"🔍 Amostra do conteúdo coletado: {result_string[:300]}...")
+                
+            # Validar se o resultado tem conteúdo útil
+            valid_paragraphs = [p for p in result_string.split('\n') if len(p.strip()) >= 30]
+            print(f"📋 Parágrafos válidos encontrados: {len(valid_paragraphs)}")
+            
+            if valid_paragraphs:
+                print(f"✅ Exemplo de parágrafo válido: {valid_paragraphs[0][:100]}...")
+                
+            # IMPORTANTE: Processar e armazenar os dados válidos
+            processed_data = self.process_collected_text(result_string, url)
+            if processed_data:
+                self.collected_data.extend(processed_data)
+                print(f"💾 Adicionados {len(processed_data)} itens válidos à coleção")
+            
+            # RETORNAR LISTA DE TEXTOS VÁLIDOS (não string)
+            valid_texts = [p.strip() for p in valid_paragraphs if len(p.strip()) >= 30]
+            print(f"🔄 Retornando {len(valid_texts)} textos válidos para o app.py")
+            
+            return valid_texts  # Retorna lista, não string
+            
+        except requests.RequestException as e:
+            print(f"❌ Erro de requisição para {url}: {e}")
+            return []
+        except Exception as e:
+            print(f"❌ Erro ao processar {url}: {e}")
+            return []
+
+    def save_collected_data(self, texts, sources, config):
+        """Salva dados coletados em formato esperado pelo model_trainer"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Criar diretório se não existir
+            os.makedirs('training_data', exist_ok=True)
+            
+            # Preparar dados no formato esperado pelo trainer
+            training_data = []
+            for i, text in enumerate(texts):
+                training_data.append({
+                    'id': i,
+                    'content': text,
+                    'source': sources[0] if sources else 'unknown',
+                    'timestamp': datetime.now().isoformat(),
+                    'length': len(text),
+                    'word_count': len(text.split())
+                })
+            
+            # Salvar em formato compatível com model_trainer
+            filename = f'training_data/collected_data_{timestamp}.json'
+            data_to_save = {
+                'timestamp': datetime.now().isoformat(),
+                'total_texts': len(texts),
+                'sources': sources,
+                'config_used': config,
+                'texts': texts,  # Lista de strings para o trainer
+                'detailed_data': training_data  # Dados detalhados para análise
+            }
+            
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(data_to_save, f, ensure_ascii=False, indent=2)
+            
+            print(f"📁 Dados salvos em: {filename}")
+            print(f"📊 Total de textos: {len(texts)}")
+            print(f"📋 Fontes: {', '.join(sources)}")
+            
+            return filename
             
         except Exception as e:
             print(f"❌ Erro ao salvar dados: {e}")
             return None
-    
+
     def get_collected_data(self):
         """Retornar dados coletados"""
         return self.collected_data
@@ -324,3 +476,76 @@ class DataCollector:
             'total_urls': unique_urls,
             'average_length': total_chars // len(self.collected_data) if self.collected_data else 0
         }
+    
+    def get_collected_data_info(self):
+        """Retorna informações sobre os dados coletados"""
+        # Informações dos arquivos salvos
+        files = list(self.data_dir.glob("*.txt"))
+        json_files = list(Path(self.base_dir).glob("*.json"))
+        
+        total_size = sum(f.stat().st_size for f in files)
+        
+        # Informações dos dados em memória
+        memory_data_count = len(self.collected_data)
+        memory_data_size = sum(len(str(item.get('content', ''))) for item in self.collected_data)
+        
+        return {
+            "files_count": len(files),
+            "json_files_count": len(json_files),
+            "total_size_mb": round(total_size / (1024 * 1024), 2),
+            "memory_data_count": memory_data_count,
+            "memory_data_size_kb": round(memory_data_size / 1024, 2),
+            "files": [f.name for f in files],
+            "json_files": [f.name for f in json_files]
+        }
+
+    def validate_collected_text(self, text):
+        """Valida se um texto coletado é útil para treinamento"""
+        if not text or not isinstance(text, str):
+            return False, "Texto vazio ou inválido"
+            
+        text = text.strip()
+        
+        # Verificações básicas
+        if len(text) < 30:
+            return False, f"Texto muito curto ({len(text)} caracteres)"
+            
+        # Verificar se não é apenas caracteres especiais ou números
+        letters = sum(1 for c in text if c.isalpha())
+        if letters < len(text) * 0.5:  # Pelo menos 50% letras
+            return False, "Texto com poucos caracteres alfabéticos"
+            
+        # Verificar se tem palavras suficientes
+        words = text.split()
+        if len(words) < 5:
+            return False, f"Poucas palavras ({len(words)})"
+            
+        return True, "Texto válido"
+
+    def process_collected_text(self, raw_text, source_url):
+        """Processa texto coletado e extrai parágrafos válidos"""
+        if not raw_text:
+            return []
+            
+        # Dividir em parágrafos
+        paragraphs = raw_text.split('\n')
+        valid_paragraphs = []
+        
+        for paragraph in paragraphs:
+            paragraph = paragraph.strip()
+            is_valid, reason = self.validate_collected_text(paragraph)
+            
+            if is_valid:
+                valid_paragraphs.append({
+                    'source': source_url,
+                    'type': 'web',
+                    'content': paragraph,
+                    'timestamp': datetime.now().isoformat(),
+                    'length': len(paragraph),
+                    'word_count': len(paragraph.split())
+                })
+            else:
+                print(f"⚠️ Parágrafo rejeitado: {reason} - '{paragraph[:50]}...'")
+        
+        print(f"📊 Processamento completo: {len(valid_paragraphs)} parágrafos válidos de {len(paragraphs)} total")
+        return valid_paragraphs

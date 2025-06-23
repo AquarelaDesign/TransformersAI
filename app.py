@@ -118,13 +118,16 @@ def start_training():
                 if config.get('web_sources'):
                     for url in config['web_sources']:
                         try:
+                            # Usar método correto que retorna lista de textos
                             web_texts = data_collector.collect_web_data(url, config.get('keywords', []))
                             if web_texts and len(web_texts) > 0:
                                 all_texts.extend(web_texts)
                                 total_sources.add(url)
-                                print(f"Coletados {len(web_texts)} textos de {url}")
+                                print(f"✅ Coletados {len(web_texts)} textos de {url}")
+                            else:
+                                print(f"⚠️ Nenhum texto válido coletado de {url}")
                         except Exception as e:
-                            print(f"Erro ao coletar de {url}: {e}")
+                            print(f"❌ Erro ao coletar de {url}: {e}")
                 
                 # Coleta email
                 if config.get('email_config'):
@@ -133,39 +136,76 @@ def start_training():
                         if email_texts and len(email_texts) > 0:
                             all_texts.extend(email_texts)
                             total_sources.add(f"Email: {config['email_config']['username']}")
-                            print(f"Coletados {len(email_texts)} textos de email")
+                            print(f"✅ Coletados {len(email_texts)} textos de email")
+                        else:
+                            print("⚠️ Nenhum texto de email coletado")
                     except Exception as e:
-                        print(f"Erro ao coletar emails: {e}")
+                        print(f"❌ Erro ao coletar emails: {e}")
+                
+                print(f"\n📊 RESUMO DA COLETA:")
+                print(f"   - Total de textos brutos: {len(all_texts)}")
+                print(f"   - Total de fontes: {len(total_sources)}")
                 
                 # Verificar se há dados válidos antes de continuar
                 if not all_texts or len(all_texts) == 0:
-                    print("Nenhum texto coletado - abortando treinamento")
+                    print("❌ Nenhum texto coletado - abortando treinamento")
                     model_trainer.update_status('error', 0, 'Nenhum dado foi coletado para treinamento. Verifique as fontes configuradas.')
                     return
                 
-                # Remover textos vazios ou muito curtos
-                valid_texts = [text.strip() for text in all_texts if text.strip() and len(text.strip()) > 10]
+                # Remover textos vazios ou muito curtos (critério mais flexível)
+                valid_texts = []
+                for text in all_texts:
+                    if isinstance(text, str):
+                        clean_text = text.strip()
+                        if len(clean_text) >= 25:  # Reduzido de 30 para 25
+                            valid_texts.append(clean_text)
+                
+                print(f"   - Textos válidos (≥25 chars): {len(valid_texts)}")
                 
                 if len(valid_texts) == 0:
-                    print("Nenhum texto válido encontrado - abortando")
+                    print("❌ Nenhum texto válido encontrado - abortando")
                     model_trainer.update_status('error', 0, 'Nenhum texto válido foi encontrado. Os textos coletados estão vazios ou são muito curtos.')
                     return
                 
-                print(f"Textos válidos para treinamento: {len(valid_texts)}")
+                # Remover duplicatas
+                unique_texts = list(set(valid_texts))
+                print(f"   - Textos únicos: {len(unique_texts)}")
                 
-                # Salvar configuração apenas se houver dados válidos
-                config['total_texts'] = len(valid_texts)
+                if len(unique_texts) < 5:
+                    print("❌ Poucos textos únicos - abortando")
+                    model_trainer.update_status('error', 0, f'Dados insuficientes: apenas {len(unique_texts)} textos únicos válidos.')
+                    return
+                
+                print(f"\n✅ DADOS VÁLIDOS PARA TREINAMENTO: {len(unique_texts)} textos")
+                
+                # Mostrar amostra dos dados
+                print("\n🔍 AMOSTRA DOS DADOS COLETADOS:")
+                for i, text in enumerate(unique_texts[:3]):
+                    print(f"   {i+1}. {text[:100]}... ({len(text)} chars)")
+                
+                # Salvar configuração e dados
+                config['total_texts'] = len(unique_texts)
                 config['total_sources'] = len(total_sources)
-                config_manager.save_training_config(config)
+                config_filename = config_manager.save_training_config(config)
                 
-                # Salvar dados coletados
-                data_collector.save_collected_data(valid_texts, list(total_sources), config)
+                # Salvar dados coletados usando método correto
+                data_filename = data_collector.save_collected_data(unique_texts, list(total_sources), config)
                 
-                print("\n=== INICIANDO TREINAMENTO DO MODELO ===")
+                if not data_filename:
+                    print("❌ Erro ao salvar dados coletados")
+                    model_trainer.update_status('error', 0, 'Erro ao salvar dados coletados.')
+                    return
+                
+                print(f"\n💾 Dados salvos em: {data_filename}")
+                print(f"⚙️ Configuração salva em: {config_filename}")
+                
+                print("\n🚀 INICIANDO TREINAMENTO DO MODELO...")
                 model_trainer.train_model(config)
                 
             except Exception as e:
-                print(f"\nERRO NO PROCESSO: {str(e)}")
+                print(f"\n❌ ERRO NO PROCESSO: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 model_trainer.update_status('error', 0, f'Erro durante o processo: {str(e)}')
         
         thread = threading.Thread(target=collect_and_train)
