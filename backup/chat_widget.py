@@ -714,7 +714,7 @@ def admin_panel():
 
 @chat_app.route('/admin/queue')
 def get_queue():
-    """Retorna fila de atendimento com informações do cliente"""
+    """Retorna fila de atendimento com informações do cliente (melhorada)"""
     try:
         print(f"[ADMIN] Consultando fila. Total na fila: {len(chatbot.human_queue)}")
         
@@ -727,7 +727,7 @@ def get_queue():
                 waiting_seconds = (datetime.now() - start_time).total_seconds()
                 waiting_time = f"{int(waiting_seconds // 60)}min" if waiting_seconds >= 60 else f"{int(waiting_seconds)}s"
                 
-                # Buscar informações adicionais da conversa
+                # Buscar informações da conversa
                 conversation_id = item['conversation_id']
                 conversation = chatbot.conversations.get(conversation_id, {})
                 client_data = conversation.get('client_data', {})
@@ -736,11 +736,20 @@ def get_queue():
                 client_email = client_data.get('email', '')
                 is_returning_client = False
                 previous_conversations_count = 0
+                client_preview_history = []
                 
                 if client_email:
                     previous_conversations = get_client_history_by_email(client_email)
                     previous_conversations_count = len(previous_conversations)
                     is_returning_client = previous_conversations_count > 0
+                    
+                    # Preparar preview do histórico
+                    for prev_conv in previous_conversations[:2]:  # 2 mais recentes
+                        client_preview_history.append({
+                            'date': format_date(prev_conv.get('date')),
+                            'summary': prev_conv.get('summary', 'Conversa anterior')[:50] + '...',
+                            'transferred_to_human': prev_conv.get('transferred_to_human', False)
+                        })
                 
                 queue_item = {
                     'conversation_id': conversation_id,
@@ -751,6 +760,7 @@ def get_queue():
                     'client_phone': client_data.get('phone', ''),
                     'is_returning_client': is_returning_client,
                     'previous_conversations_count': previous_conversations_count,
+                    'client_history_preview': client_preview_history,  # Preview do histórico
                     'waiting_time': waiting_time,
                     'priority': 'high' if is_returning_client else 'normal'
                 }
@@ -759,20 +769,22 @@ def get_queue():
         # Ordenar fila - clientes recorrentes primeiro
         queue.sort(key=lambda x: (not x['is_returning_client'], x['timestamp']))
         
-        # Conversas ativas com agentes
+        # Conversas ativas com nomes CORRETOS dos agentes
         active_conversations = []
         for conv_id, conv in chatbot.conversations.items():
             if conv.get('assigned_agent') and conv.get('status') == 'active':
                 agent_id = conv['assigned_agent']
                 agent_name = conv.get('agent_name', agent_id)
                 
+                # Garantir nome correto do agente
                 if agent_id in chatbot.human_agents:
                     agent_name = chatbot.human_agents[agent_id]['name']
+                    conv['agent_name'] = agent_name  # Atualizar na conversa
                 
                 active_conversations.append({
                     'conversation_id': conv_id,
                     'agent_id': agent_id,
-                    'agent_name': agent_name,
+                    'agent_name': agent_name,  # Nome correto
                     'start_time': conv['start_time'],
                     'agent_start_time': conv.get('agent_start_time'),
                     'client_email': conv.get('client_data', {}).get('email', ''),
@@ -792,7 +804,7 @@ def get_queue():
 
 @chat_app.route('/admin/agent_login', methods=['POST'])
 def agent_login():
-    """Registra/atualiza informações do agente"""
+    """Registra/atualiza informações do agente (corrigida para salvar nome)"""
     try:
         data = request.json
         agent_id = data.get('agent_id')
@@ -800,6 +812,10 @@ def agent_login():
         
         if not agent_id:
             return jsonify({'success': False, 'message': 'ID do agente é obrigatório'})
+        
+        # Se não foi fornecido nome, usar o ID
+        if not agent_name or agent_name == agent_id:
+            agent_name = f"Agente {agent_id}"
         
         # Registrar ou atualizar agente
         chatbot.human_agents[agent_id] = {
@@ -821,26 +837,74 @@ def agent_login():
 
 @chat_app.route('/admin/conversation/<conversation_id>')
 def get_conversation(conversation_id):
-    """Retorna detalhes de uma conversa específica com histórico do cliente"""
+    """Retorna detalhes de uma conversa específica com histórico COMPLETO do cliente"""
     try:
         if conversation_id in chatbot.conversations:
             conversation = chatbot.conversations[conversation_id]
             
             # Adicionar informações do agente se disponível
             agent_id = conversation.get('assigned_agent')
+            agent_name = conversation.get('agent_name', agent_id)
+            
             if agent_id and agent_id in chatbot.human_agents:
                 conversation['agent_info'] = chatbot.human_agents[agent_id]
+                # Garantir que o nome está atualizado
+                agent_name = chatbot.human_agents[agent_id].get('name', agent_name)
+                conversation['agent_name'] = agent_name
             
-            # Incluir histórico do cliente se disponível
+            # Incluir histórico COMPLETO do cliente
             client_email = conversation.get('client_data', {}).get('email', '')
             if client_email:
-                conversation['client_full_history'] = get_client_history_by_email(client_email)
+                full_history = get_client_history_by_email(client_email)
+                conversation['client_full_history'] = full_history
+                
+                # Adicionar mensagens do histórico formatadas para exibição
+                conversation['client_history_messages'] = []
+                
+                for hist_conv in full_history[:3]:  # 3 conversas mais recentes
+                    # Buscar mensagens completas da conversa histórica
+                    hist_messages = get_conversation_messages(hist_conv.get('conversation_id'))
+                    if hist_messages:
+                        conversation['client_history_messages'].append({
+                            'conversation_date': hist_conv.get('date'),
+                            'conversation_id': hist_conv.get('conversation_id'),
+                            'messages': hist_messages[:10],  # Primeiras 10 mensagens
+                            'total_messages': len(hist_messages),
+                            'summary': hist_conv.get('summary', 'Conversa anterior')
+                        })
             
             return jsonify({'conversation': conversation})
         else:
             return jsonify({'error': 'Conversa não encontrada'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+def get_conversation_messages(conversation_id):
+    """Busca mensagens de uma conversa específica (histórico ou atual)"""
+    try:
+        # Primeiro, verificar conversas ativas
+        if conversation_id in chatbot.conversations:
+            return chatbot.conversations[conversation_id].get('messages', [])
+        
+        # Buscar em arquivos salvos
+        chat_data_dir = 'chat_training_data'
+        if os.path.exists(chat_data_dir):
+            for filename in os.listdir(chat_data_dir):
+                if filename.endswith('.json') and conversation_id in filename:
+                    try:
+                        file_path = os.path.join(chat_data_dir, filename)
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            saved_conv = json.load(f)
+                        
+                        if saved_conv.get('conversation_id') == conversation_id:
+                            return saved_conv.get('full_chat_history', [])
+                    except Exception as e:
+                        print(f"Erro ao ler mensagens de {filename}: {e}")
+        
+        return []
+    except Exception as e:
+        print(f"Erro ao buscar mensagens da conversa {conversation_id}: {e}")
+        return []
 
 @chat_app.route('/admin/send_message', methods=['POST'])
 def admin_send_message():
@@ -864,6 +928,11 @@ def admin_send_message():
         # Verificar tamanho da mensagem (limite mais alto)
         if len(message) > 5000:  # Limite aumentado para 5000 caracteres
             return jsonify({'success': False, 'message': 'Mensagem muito longa (máximo 5000 caracteres)'})
+
+        # Obter nome do agente
+        agent_name = conversation.get('agent_name', agent_id)
+        if agent_id in chatbot.human_agents:
+            agent_name = chatbot.human_agents[agent_id]['name']
         
         # Adicionar mensagem com timestamp preciso
         new_message = {
